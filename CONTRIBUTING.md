@@ -60,6 +60,8 @@ config.go            $GNOHOME/gnopie/config.toml
 scripts/devnode/     a throwaway in-memory chain, for screenshots
 scripts/screenshots.sh  regenerates docs/img/ from real output
 scripts/termsvg.py   captured text -> SVG
+scripts/socialcard.py  draws docs/img/banner.png, the link-preview card
+docs/index.html      the site at moul.github.io/gnopie
 staticcheck.conf     which checks are on, and why two are off
 ```
 

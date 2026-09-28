@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gnopie: httpie, but for gno.land</title>
+<meta name="description" content="gnopie reads a realm, evaluates a function or signs a transaction in one command, discovering the network and measuring the gas instead of guessing it. Unaudited personal tooling.">
+<meta property="og:title" content="gnopie">
+<meta property="og:description" content="httpie, but for gno.land. The gas is measured, not guessed, and so is the fee it implies.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://moul.github.io/gnopie/">
+<meta property="og:image" content="https://moul.github.io/gnopie/img/banner.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="img/logo.svg" type="image/svg+xml">
+<style>
+  :root{--bg:#0d1117;--panel:#11131a;--fg:#c9d1d9;--dim:#8b949e;--acc:#7ee787;--acc2:#d2a8ff;--warn:#f0883e;--line:#21262d}
+  @media (prefers-color-scheme: light){
+    :root{--bg:#fff;--panel:#f6f8fa;--fg:#1f2328;--dim:#59636e;--acc:#1a7f37;--acc2:#8250df;--warn:#bc4c00;--line:#d1d9e0}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:0 20px 80px}
+  header{padding:64px 0 28px;border-bottom:1px solid var(--line)}
+  header .mark{display:block;margin-bottom:18px}
+  h1{font-size:44px;margin:0 0 6px;letter-spacing:-.02em}
+  h1 span{color:var(--acc)}
+  .tag{color:var(--dim);font-size:19px;margin:0 0 22px}
+  .badges img{height:20px;margin:0 6px 6px 0;vertical-align:middle}
+  h2{margin:44px 0 12px;font-size:24px;letter-spacing:-.01em}
+  h3{margin:28px 0 8px;font-size:17px;color:var(--dim);font-weight:600}
+  p{margin:0 0 14px}
+  a{color:var(--acc2)}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px}
+  code{background:var(--panel);padding:2px 6px;border-radius:5px}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;overflow-x:auto}
+  pre code{background:none;padding:0}
+  img.shot{width:100%;max-width:100%;border-radius:10px;margin:8px 0 6px;display:block}
+  figure{margin:0 0 26px}
+  figcaption{color:var(--dim);font-size:14px}
+  table{border-collapse:collapse;width:100%;margin:0 0 20px;font-size:15px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:14px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px}
+  @media(max-width:680px){.cols{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card h4{margin:0 0 6px;font-size:15px}
+  .card p{margin:0;color:var(--dim);font-size:14.5px}
+  .warn{border:1px solid var(--warn);border-left-width:4px;border-radius:10px;
+    padding:16px 18px;margin:28px 0;background:var(--panel)}
+  .warn h2{margin:0 0 10px;font-size:19px;color:var(--warn)}
+  .warn ul{margin:0;padding-left:20px}
+  .warn li{margin-bottom:7px;font-size:15px}
+  .warn .last{margin:12px 0 0;font-size:15px}
+  footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--dim);font-size:14px}
+  .lede{font-size:18px}
+  .num{color:var(--acc);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <img class="mark" src="img/logo.svg" alt="" width="72" height="72">
+  <h1>gno<span>pie</span> 🥧</h1>
+  <p class="tag">httpie, but for <a href="https://gno.land">gno.land</a>.
+    One command to read a realm, evaluate a function, or send a transaction.</p>
+  <p class="badges">
+    <a href="https://github.com/moul/gnopie/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/moul/gnopie/actions/workflows/ci.yml/badge.svg"></a>
+    <a href="https://pkg.go.dev/moul.io/gnopie"><img alt="Go Reference" src="https://pkg.go.dev/badge/moul.io/gnopie.svg"></a>
+    <a href="https://github.com/moul/gnopie/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/moul/gnopie?label=release&amp;color=7ee787"></a>
+    <a href="https://github.com/moul/gnopie/blob/main/COPYRIGHT"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0%20%2F%20MIT-%2397ca00.svg"></a>
+    <a href="https://github.com/moul/gnopie/blob/main/SECURITY.md"><img alt="Unaudited" src="https://img.shields.io/badge/audited-never-f0883e.svg"></a>
+    <a href="https://github.com/moul/gnopie"><img alt="GitHub" src="https://img.shields.io/badge/github-moul%2Fgnopie-blue"></a>
+  </p>
+  <pre><code>go install moul.io/gnopie@latest</code></pre>
+</header>
+
+<div class="warn">
+  <h2>⚠️ Read this before you point it at a chain</h2>
+  <ul>
+    <li><strong>Not audited.</strong> Not by anyone, ever. No security review, no third party.
+      Much of it was written with AI assistance.</li>
+    <li><strong>It signs and broadcasts real transactions with real money.</strong>
+      <code>CALL</code> and <code>RUN</code> are irreversible. There is no undo on a chain.</li>
+    <li><strong>It is not a gno.land project.</strong> Not endorsed by or affiliated with
+      gno.land, the Gno core team, or any organisation. It is one person's tool.</li>
+    <li><strong>It is pinned to one gno version</strong> and has broken more than once when the
+      VM moved underneath it. A newer chain can make it silently wrong, not merely broken.</li>
+  </ul>
+  <p class="last">Use <code>--dry-run</code> and <code>-print</code> so you never have to take
+    its word for a transaction. <strong>Do not use it for anything you cannot afford to
+    lose.</strong> If you want a supported tool, use
+    <a href="https://github.com/gnolang/gno/tree/master/gno.land/cmd/gnokey">gnokey</a>.</p>
+</div>
+
+<h2>The number you cannot look up</h2>
+<p class="lede">Composing a <code>gnokey maketx</code> by hand means knowing five things: the
+RPC endpoint, the chain ID, the function signature, the argument types, and the gas.</p>
+<p><strong>Four of those you can look up. The gas you cannot</strong>, because gno prices a
+transaction on what the code does. The same <code>send</code> costs
+<span class="num">1,238,665</span> when it has to create the recipient's account and a fraction
+of that when the account exists, and nothing in the command says which case you are in.</p>
+<p>So everyone guesses, and the guess is wrong:</p>
+<pre><code>gas used (11674483) exceeds tx's gas wanted (2000000)</code></pre>
+<p>gnopie simulates first and broadcasts the measured number. There is no gas flag to get
+wrong.</p>
+
+<figure>
+  <img class="shot" src="img/get.svg" alt="gnopie rendering a realm and evaluating a function">
+  <figcaption>The default verb is usually the right one, so most of the time you do not type a verb.</figcaption>
+</figure>
+
+<h2>The fee is a ratio, which is the half everyone misses</h2>
+<p>The fee is not a flat amount you pick. The ante handler compares a ratio:</p>
+<pre><code>gas_fee / gas_wanted  &gt;=  block gas price</code></pre>
+<p>Two things follow, and they pull in opposite directions.</p>
+<div class="cols">
+  <div class="card">
+    <h4>A flat fee bounces</h4>
+    <p>as the transaction gets bigger, because <code>gas_wanted</code> grows with what the code
+      does and a constant cannot track it.</p>
+  </div>
+  <div class="card">
+    <h4>A flat fee burns money</h4>
+    <p>if it is big enough never to bounce. <code>gas_wanted</code> is a ceiling and is
+      refunded. The fee is transferred in full and never returned.</p>
+  </div>
+</div>
+<p>gnopie itself used to default to <code>-gas-fee=1000000ugnot</code>, a flat 1 GNOT. A measured
+<code>counter.Increment()</code> needs <span class="num">4,032 ugnot</span>. That default was
+overpaying by <span class="num">248x</span> on every transaction, while still being one large
+call away from bouncing. Both numbers are derived from the same measurement now.</p>
+
+<figure>
+  <img class="shot" src="img/gnokey.svg" alt="gnopie printing a gnokey command with measured gas and a derived fee">
+  <figcaption><code>-print</code> is the one to reach for when you do not trust it: the gnokey
+    invocation, measured gas and derived fee and all, broadcasting nothing.</figcaption>
+</figure>
+
+<h2>Verbs</h2>
+<p>Inspired by httpie: the verb says what kind of thing you are doing.</p>
+<table>
+  <tr><th>Verb</th><th>What it does</th></tr>
+  <tr><td><strong>GET</strong> (default)</td><td><code>Render</code> for a realm, <code>EVAL</code> for a call expression, <code>READ</code> for a symbol, <code>INSPECT</code> for a domain</td></tr>
+  <tr><td><strong>EVAL</strong></td><td>evaluate a read-only function call</td></tr>
+  <tr><td><strong>READ</strong></td><td>source of a function, a file, or the value of a variable</td></tr>
+  <tr><td><strong>INSPECT</strong></td><td>a network, a realm, or a symbol, in detail</td></tr>
+  <tr><td><strong>CALL</strong></td><td>sign and broadcast a <code>MsgCall</code></td></tr>
+  <tr><td><strong>RUN</strong></td><td>generate a script and broadcast a <code>MsgRun</code></td></tr>
+</table>
+
+<figure>
+  <img class="shot" src="img/inspect.svg" alt="gnopie INSPECT listing files, functions and signatures">
+  <figcaption>INSPECT dumped the entire realm interface for every crossing function until
+    v0.4.0: 509 columns against the gno.land blog. It reads the method set now.</figcaption>
+</figure>
+
+<figure>
+  <img class="shot" src="img/read.svg" alt="gnopie READ showing a function's source straight from the chain">
+  <figcaption>READ prints one declaration, with its doc comment, straight off the chain. No
+    clone, no checkout.</figcaption>
+</figure>
+
+<h2>What it does for you</h2>
+<div class="cols">
+  <div class="card">
+    <h4>Auto-discovery</h4>
+    <p>Reads <code>&lt;meta name="gnoconnect:rpc"&gt;</code> off the domain's gnoweb page. No
+      endpoint to configure, no chain ID to remember.</p>
+  </div>
+  <div class="card">
+    <h4>Auto-gas, auto-fee</h4>
+    <p>CALL and RUN simulate, then broadcast with the measured gas plus a buffer and a fee
+      sized from it. The feature the whole tool is worth having for.</p>
+  </div>
+  <div class="card">
+    <h4>Crossing functions</h4>
+    <p>Detected from the signature rather than assumed, so a realm function that needs a
+      <code>cur realm</code> gets one.</p>
+  </div>
+  <div class="card">
+    <h4>Paste a gnoweb URL</h4>
+    <p>The scheme, the <code>:p/render-path</code>, <code>$source</code>, <code>$help</code> and
+      <code>#func-Name</code> fragments are all understood.</p>
+  </div>
+</div>
+
+<h2>Seeing before signing</h2>
+<pre><code>gnopie CALL --dry-run 'gno.land/r/demo/counter.Increment()'
+gnopie CALL -print    'gno.land/r/demo/counter.Increment()'
+gnopie --json gno.land/r/gnoland/blog | jq .result
+gnopie --debug gno.land/r/gnoland/blog</code></pre>
+<p><strong>It will never print a number it did not measure.</strong> It used to print a hardcoded
+<code>10000000</code> on both signing paths, which is the one thing this tool exists to stop: the
+same call measured <span class="num">11,732,203</span> against mainnet, so a command copied out
+of gnopie failed exactly the way a hand-written one does.</p>
+<p>Measuring needs a signature, so it needs a key. Without one, <strong>both gas flags are left
+out</strong> and the reason is printed beside them, rather than a plausible number being invented
+to fill the gap.</p>
+
+<figure>
+  <img class="shot" src="img/call.svg" alt="gnopie CALL measuring, signing and broadcasting, with the counter before and after">
+  <figcaption>Every image on this page is generated from real command output against a throwaway
+    chain, and CI fails if a committed one goes stale.</figcaption>
+</figure>
+
+<h2>Configuration</h2>
+<table>
+  <tr><th>Key</th><th>Default</th><th>What it does</th></tr>
+  <tr><td><code>key</code></td><td>none</td><td>the gnokey key that signs</td></tr>
+  <tr><td><code>gas-buffer</code></td><td>20</td><td>percent added to the measured gas. Free: the ceiling is refunded</td></tr>
+  <tr><td><code>fee-margin</code></td><td>200</td><td>percent of the ante handler's floor. Not free: the fee is spent</td></tr>
+</table>
+<pre><code>gnopie config set key=alice
+gnopie config list</code></pre>
+
+<h2>Version pinning, and why it matters</h2>
+<p>gnopie links gno as a <strong>library</strong>, so it is pinned to one version in
+<code>go.mod</code> and the chain it talks to may be newer. <code>gnopie version</code> prints
+both.</p>
+<p>This is not hypothetical, and it has bitten three times. The MsgRun generator emitted
+<code>func main()</code> and a bare <code>cross</code>, correct when written and rejected once the
+VM moved to <code>func main(cur realm)</code> and <code>cross(cur)</code>. EVAL prepended a bare
+<code>cross</code> the VM no longer accepts, when the chain had been injecting it itself all
+along. INSPECT matched the realm interface by a literal prefix string that the VM had since
+changed. <strong>Each failed silently rather than loudly.</strong></p>
+<p>When gno cuts a release, bump the pin and run the suite. That is the maintenance this tool
+costs.</p>
+
+<h2>Install</h2>
+<pre><code>go install moul.io/gnopie@latest</code></pre>
+<p>or take a binary, on a machine with no Go at all:</p>
+<pre><code>curl -sSfL https://github.com/moul/gnopie/releases/latest/download/gnopie_linux_x86_64.tar.gz \
+  | tar -xz gnopie &amp;&amp; sudo mv gnopie /usr/local/bin/</code></pre>
+<p>Then point it at your gnokey key:</p>
+<pre><code>gnopie config set key=&lt;your key name&gt;</code></pre>
+<p>gnopie reads the gnokey keybase at <code>$GNOHOME</code>. It never creates, stores or
+transmits keys of its own.</p>
+
+<h2>Please break it</h2>
+<p>Point it at a realm you know and check the source it prints. Run <code>-print</code> on a call
+you were about to make by hand, and compare the gas to whatever you were about to type.</p>
+<p>If it hands you a number that turns out wrong, that is the bug I most want to hear about,
+because it is the only one that costs you money.
+<a href="https://github.com/moul/gnopie/issues">Open an issue</a>. Anything with a safety angle
+goes to a <a href="https://github.com/moul/gnopie/security/advisories/new">private
+advisory</a> instead.</p>
+
+<footer>
+  <a href="https://github.com/moul/gnopie">github.com/moul/gnopie</a> ·
+  <a href="https://github.com/moul/gnopie/blob/main/CONTRIBUTING.md">Contributing</a> ·
+  <a href="https://github.com/moul/gnopie/blob/main/docs/adr.md">Design decisions</a> ·
+  <a href="https://github.com/moul/gnopie/blob/main/SECURITY.md">Security</a> ·
+  Apache-2.0 OR MIT<br>
+  Started as <a href="https://github.com/gnolang/gno/pull/5444">gnolang/gno#5444</a>, a draft
+  nobody reviewed. Unaudited personal tooling; no support, no warranty, no promises.
+</footer>
+
+</div>
+</body>
+</html>

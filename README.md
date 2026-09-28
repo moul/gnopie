@@ -16,6 +16,7 @@
   <a href="https://pkg.go.dev/moul.io/gnopie"><img src="https://pkg.go.dev/badge/moul.io/gnopie.svg" alt="Go Reference"></a>
   <a href="./COPYRIGHT"><img src="https://img.shields.io/badge/license-Apache--2.0%20%2F%20MIT-%2397ca00.svg" alt="License"></a>
   <a href="./SECURITY.md"><img src="https://img.shields.io/badge/audited-never-f0883e.svg" alt="Unaudited"></a>
+  <a href="https://moul.github.io/gnopie/"><img src="https://img.shields.io/badge/docs-moul.github.io%2Fgnopie-blue" alt="Site"></a>
 </p>
 
 ```bash
