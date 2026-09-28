@@ -182,6 +182,31 @@ func TestFormatSignatureStaysWithinWidth(t *testing.T) {
 			"expected an opening line, one line per parameter, and a closing line")
 	})
 
+	// A long RESULT rides on the closing line and can push it past the target,
+	// because there is nothing to break: an anonymous struct is one token as far
+	// as this is concerned. Measured against gno.land/r/gnoland/blog on
+	// 2026-09-28, NewPostProposalRequest closes at 91 columns for exactly this
+	// reason, down from a 509-column single line. Documented rather than fixed:
+	// shortening the struct would drop the field types, which are the useful
+	// part of a return value.
+	t.Run("a long result is not truncated to fit", func(t *testing.T) {
+		t.Parallel()
+		result := "struct{title string; description string; executor dao.Executor; filter dao.Filter}"
+		got := formatSignature("  ", "NewPostProposalRequest",
+			[]string{"cur realm", "slug string", "title string", "body string",
+				"publicationDate string", "authors string", "tags string"},
+			[]string{result})
+
+		require.Contains(t, got, result, "the result type must survive whole")
+		lines := strings.Split(got, "\n")
+		for _, l := range lines[:len(lines)-1] {
+			require.LessOrEqual(t, len(l), maxSignatureWidth,
+				"every line except the closing one stays within the target: %q", l)
+		}
+		require.True(t, strings.HasPrefix(lines[len(lines)-1], "  ) "+result[:6]),
+			"the result belongs on the closing line, got %q", lines[len(lines)-1])
+	})
+
 	// A single parameter that is itself over the limit cannot be wrapped into
 	// it. It must still be printed whole rather than cut.
 	t.Run("one unwrappable parameter is not truncated", func(t *testing.T) {
