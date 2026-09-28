@@ -211,7 +211,7 @@ make all          # lint + the full suite
 make gnoroot      # prints how to get a gno checkout at the pinned tag
 ```
 
-59 test functions, 310 assertions. Around 190 of them are pure (path parsing, fee
+69 test functions, 324 assertions. Around 200 of them are pure (path parsing, fee
 arithmetic, config, the generated script) and need nothing on disk. The rest boot
 an in-memory gno node; without a matching gno source tree they **skip** rather
 than fail.

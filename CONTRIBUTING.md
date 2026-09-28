@@ -48,6 +48,7 @@ tests **skip**, loudly, and the rest still run.
 main.go              flags, dispatch, the shared query helpers
 paths.go             ParsePath: everything the user can type, into a GnoPath
 get.go               GET / EVAL / READ / INSPECT, the read-only verbs
+source.go            pulling one declaration out of a .gno file, by parsing it
 call.go              CALL, and the shared gnokey-command rendering
 run.go               RUN, and the generated main.gno
 tx.go                the transaction planner: gas and fee, one place
@@ -97,6 +98,18 @@ Break the thing it covers, confirm it goes red, restore. A test that *cannot*
 fail reads exactly like a test that is satisfied. Three of the tests in this repo
 were written against a deliberately reintroduced bug for precisely this reason;
 `gnokeycmd_test.go` says which.
+
+### Parse, do not scan
+
+`source.go` pulls a declaration out of a file with `go/parser`, not by finding a
+line and counting braces. The scanner it replaced had two silent failures: a
+brace inside a string literal ran the extraction to the end of the file, and a
+comment mentioning `func Helper` matched before the real declaration. Both
+printed plausible garbage rather than erroring.
+
+gno is syntactically Go for declarations: measured 2026-09-28, `go/parser` read
+1036 of 1036 `.gno` files under a v1.5.0 `examples/` tree. The old scanner
+survives only as a fallback for a file that will not parse. Do not extend it.
 
 ### Match a VM-generated string on its shape, never on a literal
 
