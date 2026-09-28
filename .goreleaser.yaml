@@ -1,0 +1,68 @@
+# goreleaser builds the binaries a release attaches, so trying gnopie does not
+# require a Go toolchain. Run by .github/workflows/release.yml on a tag.
+version: 2
+
+before:
+  hooks:
+    # Not `go mod tidy`: a release must build exactly what the tag holds, and a
+    # hook that may rewrite go.mod turns a reproducible build into a hopeful
+    # one. Verifying is the useful half of it.
+    - go mod verify
+
+builds:
+  - id: gnopie
+    main: .
+    binary: gnopie
+    # CGO off, deliberately, and it is load-bearing here rather than a habit.
+    # The gno dependency pulls in lmdb and mdbx, both cgo, through the tm2
+    # database registry. gnopie is an RPC client and opens no local database, so
+    # the pure-Go build is complete, and it is what makes a static
+    # cross-compiled binary possible at all.
+    env:
+      - CGO_ENABLED=0
+    # No -X ldflags. `gnopie version` reads debug.ReadBuildInfo(), and since Go
+    # 1.24 `go build` stamps Main.Version from the VCS tag on its own, so a
+    # goreleaser build already reports the tag. Adding a -X here would be a
+    # second source of truth that can disagree with the first.
+    #
+    # It also reports which gno it linked, from the same build info, which is
+    # the number that explains most surprises (see README, Version pinning).
+    flags:
+      - -trimpath
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    # No version in the archive name, deliberately. GitHub's
+    # releases/latest/download/<name> redirect only resolves a name that is the
+    # same in every release, and a working one-line install is worth more than
+    # unique filenames in a downloads folder. The version is inside: the binary
+    # reports it, and checksums.txt is per release.
+    #
+    # uname spellings for both halves, so the name is what `uname -s | tr A-Z
+    # a-z` and `uname -m` compute and the README's curl line needs no lookup
+    # table.
+    name_template: >-
+      {{ .ProjectName }}_{{ .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64{{ else if eq .Arch "arm64" }}arm64{{ else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - CONTRIBUTING.md
+      - COPYRIGHT.md
+      - LICENSE.md
+
+checksum:
+  name_template: checksums.txt
+
+# The release notes are written by hand, because what changed and why is not
+# derivable from commit subjects. append leaves an existing body alone and only
+# attaches the artifacts; replacing it would silently discard the prose.
+release:
+  mode: append
+
+changelog:
+  disable: true

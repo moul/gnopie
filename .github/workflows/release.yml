@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-24.04
+    steps:
+      # Full history and tags: goreleaser reads the tag it is building, and
+      # `go build` stamps the version from VCS state, so a shallow clone
+      # produces a binary that reports the wrong version.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Prove the tag is green before publishing anything from it. CI already
+      # ran on the commit, but a tag can be pushed at any commit, including one
+      # that never saw a pull request.
+      - id: pin
+        run: echo "ref=$(go list -m -f '{{.Version}}' github.com/gnolang/gno)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: gnolang/gno
+          ref: ${{ steps.pin.outputs.ref }}
+          path: gnoroot
+      - run: GNOROOT="$GITHUB_WORKSPACE/gnoroot" go test -count=1 ./...
+        timeout-minutes: 20
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

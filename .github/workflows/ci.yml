@@ -1,11 +1,24 @@
-name: ci
+name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+# A push that lands while the previous one is still running cancels it. gnopie's
+# slowest job boots a chain per test that broadcasts, so a queue builds up fast.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  # The fast half: everything that does NOT need a gno source tree. It is a
+  # separate job so a formatting mistake is red in twenty seconds rather than
+  # after a 400MB checkout and a chain boot.
+  unit:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -14,12 +27,38 @@ jobs:
           go-version-file: go.mod
       - run: go build ./...
       - run: go vet ./...
+      - run: gofmt -l . | tee /tmp/fmt && test ! -s /tmp/fmt
+      # -short skips everything that boots a chain. Roughly 160 assertions over
+      # path parsing, fee arithmetic, config and the generated script, in well
+      # under a second, with no GNOROOT anywhere.
+      - run: go test -short ./...
 
-  # The suite needs a gno source tree whose version matches the pin in go.mod,
-  # because it loads realms out of examples/ and type-checks them with the VM the
-  # module links. Checked out by tag for that reason and not by branch: master
-  # would drift past the pin and fail as `invalid gno package; type check failed`,
-  # which names neither the version nor the line.
+  # staticcheck on its own job, with its own Go, and BOTH pinned.
+  #
+  # It is squeezed from two sides: it refuses to analyse a module whose `go`
+  # directive is newer than the toolchain it was built with, and it cannot read
+  # export data from a toolchain newer than that one either. Pinning the pair
+  # together is what keeps it from going red on a day nobody touched the code.
+  #
+  # staticcheck.conf says which checks are on and why one is off.
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+      - run: staticcheck ./...
+
+  # The full suite, which needs a gno source tree whose version matches the pin
+  # in go.mod, because it loads realms out of examples/ and type-checks them with
+  # the VM the module links.
+  #
+  # Checked out BY TAG for that reason and never by branch: master drifts past
+  # the pin and the failure is `invalid gno package; type check failed`, which
+  # names neither the version nor the line. That is not hypothetical, it is how
+  # the MsgRun generator broke.
   test:
     runs-on: ubuntu-24.04
     steps:
@@ -34,4 +73,48 @@ jobs:
           repository: gnolang/gno
           ref: ${{ steps.pin.outputs.ref }}
           path: gnoroot
-      - run: GNOROOT="$GITHUB_WORKSPACE/gnoroot" go test ./...
+      - run: GNOROOT="$GITHUB_WORKSPACE/gnoroot" go test -count=1 ./...
+        timeout-minutes: 20
+
+  # The documented install path, proved against this tree rather than assumed.
+  install:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go install ./... && gnopie version
+
+  # The README's images are generated, so they can go stale silently. This
+  # regenerates them and fails if the result differs from what is committed,
+  # which turns "the screenshot no longer matches the output" into a red check.
+  screenshots:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - id: pin
+        run: echo "ref=$(go list -m -f '{{.Version}}' github.com/gnolang/gno)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: gnolang/gno
+          ref: ${{ steps.pin.outputs.ref }}
+          path: gnoroot
+      - run: GNOROOT="$GITHUB_WORKSPACE/gnoroot" ./scripts/screenshots.sh
+      # The RPC port and the transaction hash differ every run, so those two
+      # lines are normalised out before comparing. Everything else, including
+      # every gas and fee number, has to match.
+      - run: |
+          git diff --stat -- docs/img/
+          git diff -- docs/img/ \
+            | grep -E '^[+-]' \
+            | grep -vE '^[+-]{3}' \
+            | grep -vE '127\.0\.0\.1:|hash: |height: ' \
+            | tee /tmp/imgdiff
+          test ! -s /tmp/imgdiff || {
+            echo "::error::docs/img/ is stale. Run 'make screenshots' and commit the result."
+            exit 1
+          }

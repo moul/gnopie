@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security issue privately
+    url: https://github.com/moul/gnopie/security/advisories/new
+    about: gnopie signs real transactions. Anything with a safety angle goes here, not in a public issue.
+  - name: Read this before pointing it at a chain
+    url: https://github.com/moul/gnopie#-read-this-before-you-point-it-at-a-chain
+    about: Unaudited, pinned to one gno version, and irreversible once it broadcasts.
+  - name: Contributing guide
+    url: https://github.com/moul/gnopie/blob/main/CONTRIBUTING.md
+    about: Setup, GNOROOT, the two rules that are not style, and what done means.
+  - name: A bug in gno itself
+    url: https://github.com/gnolang/gno/issues
+    about: gnopie is a thin client over gno's own packages, so a lot of what looks like a gnopie bug is one.

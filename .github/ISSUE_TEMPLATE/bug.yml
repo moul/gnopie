@@ -1,0 +1,46 @@
+name: Bug report
+description: gnopie did something wrong, or something surprising
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If this is a **security** issue, do not file it here. Open a private
+        advisory: https://github.com/moul/gnopie/security/advisories/new
+
+        Surprising counts as a bug even when gnopie behaved as documented.
+  - type: textarea
+    id: what
+    attributes:
+      label: What you ran, what happened, what you expected
+      placeholder: |
+        $ gnopie CALL -print 'gno.land/r/demo/counter.Increment()'
+        gnokey maketx call ... -gas-wanted=10000000 ...
+
+        I expected the gas to be measured, not a round number.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: version
+    attributes:
+      label: "`gnopie version`"
+      description: >
+        Both lines. The second one says which gno the binary links, and that is
+        the number that explains most surprises: gnopie is pinned to one gno
+        version and a newer chain can make it wrong rather than broken.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: chain
+    attributes:
+      label: Which chain
+      placeholder: gno.land, test8.gno.land, a local gnodev, ...
+  - type: checkboxes
+    id: money
+    attributes:
+      label: Did this involve a transaction?
+      options:
+        - label: A transaction was broadcast (and may have cost real money)
+        - label: I was using --dry-run or -print, nothing was broadcast
