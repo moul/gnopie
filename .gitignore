@@ -1,2 +1,9 @@
 build/
 gnopie
+dist/
+# The release and test workflows check a gnolang/gno tree out HERE, because
+# actions/checkout cannot place one outside the workspace. goreleaser refuses to
+# build from a tree with untracked files in it, so without this line every
+# release fails on "git is in a dirty state" naming a 400MB directory that CI
+# put there on purpose.
+/gnoroot/
