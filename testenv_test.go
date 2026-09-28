@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,21 +59,42 @@ func sharedEnv(t *testing.T) *testEnv {
 	return &testEnv{t: t, home: sharedHome, remoteAddr: sharedAddr}
 }
 
-// chainAvailable reports whether there is a gno source tree to boot a node from.
+// chainAvailable reports whether there is a gno source tree we can boot a node
+// from.
+//
+// WRITABLE, not merely present, and that distinction is the whole function. With
+// GNOROOT unset, gnoenv.RootDir() falls back to the gno module in the Go module
+// cache, which really does have an examples/ directory, so an existence check
+// says yes. The cache is read-only, so the node then dies partway through
+// startup on
+//
+//	unable to create address book directory ... permission denied
+//
+// naming neither GNOROOT nor the cache. Found on CI, where nothing sets GNOROOT.
 func chainAvailable() bool {
-	_, err := os.Stat(filepath.Join(gnoenv.RootDir(), "examples"))
-	return err == nil
+	root := gnoenv.RootDir()
+	if _, err := os.Stat(filepath.Join(root, "examples")); err != nil {
+		return false
+	}
+	probe, err := os.CreateTemp(root, ".gnopie-writable-*")
+	if err != nil {
+		return false
+	}
+	name := probe.Name()
+	_ = probe.Close()
+	_ = os.Remove(name)
+	return true
 }
 
 // requireChain skips a test that cannot run without one, naming the reason.
 func requireChain(t *testing.T) {
 	t.Helper()
-	if !chainAvailable() || sharedHome == "" {
-		t.Skipf("needs a gno source tree: GNOROOT=%q has no examples/ (see README, Testing)",
-			gnoenv.RootDir())
-	}
 	if testing.Short() {
 		t.Skip("boots an in-memory chain; skipped under -short")
+	}
+	if !chainAvailable() || sharedHome == "" {
+		t.Skipf("needs a writable gno source tree: GNOROOT=%q (see README, Testing)",
+			gnoenv.RootDir())
 	}
 }
 
@@ -85,7 +107,15 @@ func requireChain(t *testing.T) {
 // afterwards, and the symptom was a "file is not available" from a query that had
 // quietly been re-pointed at the real gno.land.
 func TestMain(m *testing.M) {
+	// Parsed here so testing.Short() is readable before m.Run(). Without it,
+	// Short() panics, and the whole point is to decide whether to boot a chain
+	// BEFORE any test runs.
+	flag.Parse()
+
 	os.Exit(func() int {
+		if testing.Short() {
+			return m.Run()
+		}
 		tb := &fatalTB{}
 
 		home, err := os.MkdirTemp("", "gnopie-shared-home")
@@ -107,9 +137,9 @@ func TestMain(m *testing.M) {
 		// tag, so nothing is skipped where it counts.
 		if !chainAvailable() {
 			fmt.Fprintf(os.Stderr,
-				"GNOROOT=%q has no examples/, so the tests that need a chain will be skipped.\n"+
-					"Point it at a gnolang/gno checkout at the tag this module pins to run them\n"+
-					"(see README, Testing).\n", gnoenv.RootDir())
+				"GNOROOT=%q is not a writable gno source tree, so the tests that need a\n"+
+					"chain will be skipped. Point it at a gnolang/gno checkout at the tag\n"+
+					"this module pins to run them (see README, Testing).\n", gnoenv.RootDir())
 			return m.Run()
 		}
 
