@@ -59,8 +59,7 @@ archives:
     files:
       - README.md
       - CONTRIBUTING.md
-      - COPYRIGHT.md
-      - LICENSE.md
+      - COPYRIGHT
 
 checksum:
   name_template: checksums.txt

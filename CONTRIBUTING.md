@@ -52,6 +52,7 @@ call.go              CALL, and the shared gnokey-command rendering
 run.go               RUN, and the generated main.gno
 tx.go                the transaction planner: gas and fee, one place
 fee.go               the gas-price arithmetic, and why the fee is a ratio
+types.go             rendering what qfuncs reports, and the realm interface
 discover.go          gnoconnect meta-tag discovery, and its 24h cache
 querycache.go        the 1h cache for source and signatures
 config.go            $GNOHOME/gnopie/config.toml
@@ -96,6 +97,19 @@ Break the thing it covers, confirm it goes red, restore. A test that *cannot*
 fail reads exactly like a test that is satisfied. Three of the tests in this repo
 were written against a deliberately reintroduced bug for precisely this reason;
 `gnokeycmd_test.go` says which.
+
+### Match a VM-generated string on its shape, never on a literal
+
+`vm/qfuncs` reports a type's structure, not its name, so a crossing function's
+first parameter arrives as the whole realm interface. There was already a fix for
+that: a constant holding the literal prefix the VM emitted at the time. By v1.5.0
+it matched nothing, because the VM had added `.seal`, dropped `Coins` and stopped
+qualifying `address`. It failed **silently**, and the raw 290-character interface
+went on into a README screenshot.
+
+`types.go` parses the method set and decides on a quorum. Adding a case means
+adding to `realmMethods` or to `cleanType`, with the real string in
+`types_test.go` copied verbatim from actual output, never retyped.
 
 ### Table-driven, and named after the claim
 
@@ -144,7 +158,6 @@ tree is where the rules are actually written down.
 
 ## Licence
 
-GNO Network General Public License, inherited rather than chosen. See
-[`COPYRIGHT.md`](./COPYRIGHT.md) for why it cannot be Apache or MIT, and what the
-Affero clause means for you. Contributions are under the same licence; there is
-no CLA.
+Apache-2.0 OR MIT, at your option, the same as the rest of moul's Go tooling. See
+[`COPYRIGHT`](./COPYRIGHT). Contributions are under the same terms; there is no
+CLA and no copyright assignment.

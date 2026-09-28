@@ -14,7 +14,7 @@
   <a href="https://github.com/moul/gnopie/actions/workflows/ci.yml"><img src="https://github.com/moul/gnopie/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/moul/gnopie/releases/latest"><img src="https://img.shields.io/github/v/release/moul/gnopie?label=release&color=7ee787" alt="Latest release"></a>
   <a href="https://pkg.go.dev/moul.io/gnopie"><img src="https://pkg.go.dev/badge/moul.io/gnopie.svg" alt="Go Reference"></a>
-  <a href="./LICENSE.md"><img src="https://img.shields.io/badge/license-GNO%20NGPL-97ca00.svg" alt="License"></a>
+  <a href="./COPYRIGHT"><img src="https://img.shields.io/badge/license-Apache--2.0%20%2F%20MIT-%2397ca00.svg" alt="License"></a>
   <a href="./SECURITY.md"><img src="https://img.shields.io/badge/audited-never-f0883e.svg" alt="Unaudited"></a>
 </p>
 
@@ -211,7 +211,7 @@ make all          # lint + the full suite
 make gnoroot      # prints how to get a gno checkout at the pinned tag
 ```
 
-54 test functions, 278 assertions. Around 160 of them are pure (path parsing, fee
+59 test functions, 310 assertions. Around 190 of them are pure (path parsing, fee
 arithmetic, config, the generated script) and need nothing on disk. The rest boot
 an in-memory gno node; without a matching gno source tree they **skip** rather
 than fail.
@@ -233,7 +233,7 @@ so it can move at its own pace rather than waiting on a monorepo review.
 
 ## Licence
 
-[GNO Network General Public License](./LICENSE.md), inherited rather than chosen:
-gnopie is a derivative of gno and links it as a library.
-[COPYRIGHT.md](./COPYRIGHT.md) explains what that means for you, including the
-Affero clause. No support, no warranty, no promises.
+Apache-2.0 OR MIT, at your option. See [COPYRIGHT](./COPYRIGHT).
+
+gnopie links [gno](https://github.com/gnolang/gno), which carries its own terms;
+those govern that code, not this. No support, no warranty, no promises.

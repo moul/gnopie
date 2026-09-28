@@ -415,112 +415,12 @@ func formatFuncs(io commands.IO, jsonStr string) {
 		}
 		for _, r := range sig.Results {
 			typ := cleanType(r.Type)
-			// Skip synthetic result names like .res.0
-			name := cleanParamName(r.Name)
-			if name != "" {
+			if name := cleanParamName(r.Name); name != "" {
 				results = append(results, name+" "+typ)
 			} else {
 				results = append(results, typ)
 			}
 		}
-		line := fmt.Sprintf("  func %s(%s)", sig.FuncName, strings.Join(params, ", "))
-		switch len(results) {
-		case 1:
-			line += " " + results[0]
-		case 0:
-		default:
-			line += " (" + strings.Join(results, ", ") + ")"
-		}
-		io.Println(line)
+		io.Println(formatSignature("  ", sig.FuncName, params, results))
 	}
-}
-
-// cleanParamName cleans up internal parameter names.
-// Removes synthetic names like ".arg_0", ".res.0", etc.
-func cleanParamName(name string) string {
-	if name == "" {
-		return ""
-	}
-	// Skip synthetic names
-	if strings.HasPrefix(name, ".arg_") || strings.HasPrefix(name, ".res.") {
-		return ""
-	}
-	return name
-}
-
-// realmInterfacePattern matches the verbose realm interface type from qfuncs.
-const realmInterfacePrefix = "interface {Address func() .uverse.address; Coins func() .uverse.gnocoins;"
-
-// errorInterfaceStr matches the error interface pattern.
-const errorInterfaceStr = "interface {Error func() string}"
-
-// cleanType simplifies verbose internal type representations.
-func cleanType(t string) string {
-	// realm interface → realm
-	if strings.Contains(t, realmInterfacePrefix) {
-		return "realm"
-	}
-
-	// error interface → error
-	if t == errorInterfaceStr {
-		return "error"
-	}
-
-	// .uverse.error → error
-	t = strings.ReplaceAll(t, ".uverse.error", "error")
-	t = strings.ReplaceAll(t, ".uverse.realm", "realm")
-	t = strings.ReplaceAll(t, ".uverse.address", "address")
-	t = strings.ReplaceAll(t, ".uverse.gnocoins", "gnocoins")
-
-	// An anonymous struct literal keeps its shape and has its member types
-	// shortened below, like any other type. There was a hook here for naming
-	// such a struct after a package it mentions; it could not be written
-	// (qfuncs reports the structure, not the name it was declared under) and
-	// the implementation returned "" on every path, so the branch was dead.
-	//
-	// Pointer to qualified type: *gno.land/r/gov/dao.Proposal -> *dao.Proposal
-	t = shortenQualifiedTypes(t)
-
-	return t
-}
-
-// shortenQualifiedTypes replaces fully qualified type paths with short names.
-// e.g., "gno.land/r/gov/dao.Executor" → "dao.Executor"
-// e.g., "*gno.land/r/gov/dao.Proposal" → "*dao.Proposal"
-func shortenQualifiedTypes(t string) string {
-	// Process all occurrences of gno.land/... qualified types
-	for {
-		idx := strings.Index(t, "gno.land/")
-		if idx < 0 {
-			break
-		}
-		// Check for pointer prefix
-		prefix := t[:idx]
-
-		// Find the end of the qualified name (next space, comma, }, ), or end of string)
-		rest := t[idx:]
-		end := len(rest)
-		for i, ch := range rest {
-			if ch == ' ' || ch == ',' || ch == '}' || ch == ')' || ch == ';' {
-				end = i
-				break
-			}
-		}
-		qualifiedName := rest[:end]
-		remainder := rest[end:]
-
-		// Extract short name: "gno.land/r/gov/dao.Proposal" → "dao.Proposal"
-		lastSlash := strings.LastIndex(qualifiedName, "/")
-		shortName := qualifiedName
-		if lastSlash >= 0 {
-			shortName = qualifiedName[lastSlash+1:]
-		}
-
-		t = prefix + shortName + remainder
-	}
-
-	// Also clean up chain/runtime.Realm → runtime.Realm
-	t = strings.ReplaceAll(t, "chain/runtime.", "runtime.")
-
-	return t
 }

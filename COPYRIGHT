@@ -1,0 +1,30 @@
+Copyright 2026 Manfred Touron and other gnopie Developers.
+
+Intellectual Property Notice
+----------------------------
+
+gnopie is licensed under the Apache License, Version 2.0
+(https://www.apache.org/licenses/LICENSE-2.0) or the MIT license
+(https://opensource.org/licenses/MIT), at your option.
+
+Copyrights and patents in the gnopie project are retained
+by contributors.
+No copyright assignment is required to contribute to gnopie.
+
+    SPDX-License-Identifier: (Apache-2.0 OR MIT)
+
+SPDX usage
+----------
+
+Individual files may contain SPDX tags instead of the full license text.
+This enables machine processing of license information based on the SPDX
+License Identifiers that are available here: https://spdx.org/licenses/
+
+Dependencies
+------------
+
+gnopie links github.com/gnolang/gno, which is published under its own terms:
+the GNO Network General Public License for the repository, and Apache-2.0 for
+its tm2/ subdirectory. Those terms govern that code, not this one. Nothing here
+relicenses gno, and a distributor of a linked binary should read gno's LICENSE.md
+for what it asks of them.

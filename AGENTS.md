@@ -33,7 +33,7 @@ covers, run it, see red, restore. State in the pull request that you did.
 
 - Do not edit `docs/img/*.svg`. Run `make screenshots`.
 - Do not hand-write a version string. `gnopie version` reads build info.
-- Do not relicense anything, or add an SPDX header that disagrees with
-  [`COPYRIGHT.md`](./COPYRIGHT.md). The licence is inherited from gno, not chosen.
+- Do not add an SPDX header that disagrees with [`COPYRIGHT`](./COPYRIGHT):
+  `(Apache-2.0 OR MIT)`.
 - Do not add a dependency without saying why in the pull request. The tree is
   already large because gno is in it.
