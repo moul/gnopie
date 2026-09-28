@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="842" height="330" viewBox="0 0 842 330" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13">
+<rect width="842" height="330" rx="10" fill="#11131a"/>
+<rect width="842" height="34" rx="10" fill="#0d1117"/>
+<rect y="24" width="842" height="10" fill="#0d1117"/>
+<circle cx="18" cy="17.0" r="5.5" fill="#ff5f56"/>
+<circle cx="36" cy="17.0" r="5.5" fill="#ffbd2e"/>
+<circle cx="54" cy="17.0" r="5.5" fill="#27c93f"/>
+<text x="421.0" y="21.5" fill="#8b949e" text-anchor="middle" font-size="12">gnopie CALL: measure, sign, broadcast</text>
+<text x="18" y="56" fill="#7ee787">$</text>
+<text x="34.8" y="56" fill="#d2a8ff">gnopie gno.land/r/demo/counter</text>
+<text x="18" y="76" fill="#c9d1d9" xml:space="preserve">0</text>
+<text x="18" y="116" fill="#7ee787">$</text>
+<text x="34.8" y="116" fill="#d2a8ff">gnopie CALL &#x27;gno.land/r/demo/counter.Increment()&#x27;</text>
+<text x="18" y="136" fill="#7ee787" xml:space="preserve">gas-wanted 2015118 (measured), gas-fee 4032ugnot = 0.004032 GNOT (derived)</text>
+<text x="18" y="156" fill="#7ee787" xml:space="preserve">TX committed - height: 3, hash: FBA83604389870FB8DF96ED096648D28114CCA28654AD61656DA9571DED4BF96</text>
+<text x="18" y="176" fill="#7ee787" xml:space="preserve">  Gas: 1679245/2015118, fee 0.004032 GNOT</text>
+<text x="18" y="196" fill="#8b949e" xml:space="preserve">  Data: (1 int)</text>
+<text x="18" y="276" fill="#7ee787">$</text>
+<text x="34.8" y="276" fill="#d2a8ff">gnopie gno.land/r/demo/counter</text>
+<text x="18" y="296" fill="#c9d1d9" xml:space="preserve">1</text>
+</svg>

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="657" height="310" viewBox="0 0 657 310" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13">
+<rect width="657" height="310" rx="10" fill="#11131a"/>
+<rect width="657" height="34" rx="10" fill="#0d1117"/>
+<rect y="24" width="657" height="10" fill="#0d1117"/>
+<circle cx="18" cy="17.0" r="5.5" fill="#ff5f56"/>
+<circle cx="36" cy="17.0" r="5.5" fill="#ffbd2e"/>
+<circle cx="54" cy="17.0" r="5.5" fill="#27c93f"/>
+<text x="328.5" y="21.5" fill="#8b949e" text-anchor="middle" font-size="12">gnopie CALL --print-gnokey-command: measured, not guessed</text>
+<text x="18" y="56" fill="#7ee787">$</text>
+<text x="34.8" y="56" fill="#d2a8ff">gnopie CALL --print-gnokey-command &#x27;gno.land/r/demo/counter.Increment()&#x27;</text>
+<text x="18" y="76" fill="#c9d1d9" xml:space="preserve">gnokey \</text>
+<text x="18" y="96" fill="#8b949e" xml:space="preserve">  maketx \</text>
+<text x="18" y="116" fill="#8b949e" xml:space="preserve">  call \</text>
+<text x="18" y="136" fill="#8b949e" xml:space="preserve">  -broadcast \</text>
+<text x="18" y="156" fill="#8b949e" xml:space="preserve">  -chainid=tendermint_test \</text>
+<text x="18" y="176" fill="#8b949e" xml:space="preserve">  -remote=tcp://127.0.0.1:37929 \</text>
+<text x="18" y="196" fill="#7ee787" xml:space="preserve">  -gas-wanted=2015118 \</text>
+<text x="18" y="216" fill="#8b949e" xml:space="preserve">  -gas-fee=4032ugnot \</text>
+<text x="18" y="236" fill="#8b949e" xml:space="preserve">  -pkgpath=gno.land/r/demo/counter \</text>
+<text x="18" y="256" fill="#8b949e" xml:space="preserve">  -func=Increment \</text>
+<text x="18" y="276" fill="#8b949e" xml:space="preserve">  test1</text>
+</svg>

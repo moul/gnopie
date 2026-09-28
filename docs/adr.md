@@ -119,3 +119,110 @@ cross-realm calls evaluated via qeval.
   `$GNOHOME/gnopie/cache/`.
 - gnopie does not handle multi-message transactions or batch operations, those
   remain the domain of `gnokey`.
+
+---
+
+# ADR 2: the fee is derived from the measured gas, not taken as a flag
+
+**Date:** 2026-09-28. **Status:** accepted.
+
+## Context
+
+ADR 1 above got half of the problem. It established that `gas_wanted` must be
+measured rather than guessed, and that is what the tool became known for. The fee
+was left as a flag with a flat default, `-gas-fee=1000000ugnot`.
+
+That is wrong in both directions, because the ante handler does not check the fee
+as an amount. `EnsureSufficientMempoolFees` (`tm2/pkg/sdk/auth/ante.go`, v1.5.0
+line 507) builds a `GasPrice{Gas: gas_wanted, Price: gas_fee}` and compares it to
+the block gas price with `IsGTE`, which cross-multiplies. The rule is a ratio:
+
+```
+gas_fee / gas_wanted  >=  block gas price
+```
+
+So:
+
+1. **A flat fee bounces on a big transaction.** `gas_wanted` is measured and
+   grows with what the code does; a constant fee makes the ratio fall until it is
+   rejected. This is the exact failure ADR 1 set out to fix, one level down.
+2. **A flat fee is money burned on a small one.** `gas_wanted` is a ceiling and
+   the unused part is refunded. The fee is not: `DeductFees` (same file, line
+   476) calls `SendCoinsUnrestricted` for the full amount. A measured
+   `counter.Increment()` needs 4,032 ugnot against a floor of 2,016. The old
+   default charged 1,000,000: **248x**, every time.
+
+## Decision
+
+`gas_wanted` and `gas_fee` are settled together, in one function
+(`(*baseCfg).planTx`, `tx.go`), and both verbs call it.
+
+- `gas_wanted` = measured + `gas-buffer` percent (default 20). Free, because it
+  is refunded.
+- `gas_fee` = the floor for that `gas_wanted`, times `fee-margin` percent
+  (default 200). Deliberately small, because it is not refunded. The only thing
+  the margin buys is surviving the block gas price moving under a transaction
+  already in flight.
+- `--gas-fee` still wins when given, including a value below the floor: gnopie
+  does not silently override a number somebody typed on purpose.
+
+## Why one function and not two
+
+Because the alternative was tried and failed. The hardcoded `-gas-wanted=10000000`
+in `--print-gnokey-command` was found and fixed on the `CALL` path, and `RUN` went
+on printing it, plus a literal `<key-name>`, for another commit. The two were
+copies. Sharing `planTx`, `gasFlags` and `keyToken` is what makes that class of
+drift impossible rather than merely unlikely, and
+`gnokeycmd_test.go` asserts both verbs separately so a one-sided fix shows up red.
+
+## Consequences
+
+- A transaction is cheaper by two orders of magnitude in the common case, and
+  does not bounce in the rare one.
+- `fee-margin` joins `gas-buffer` in the config, with an explicit floor of 100
+  percent: a fee under the ante handler's floor is a rejected transaction, not a
+  cheaper one.
+- The plan is printed before the broadcast, so the number is on screen before the
+  money moves.
+
+---
+
+# ADR 3: the test suite does not require a gno checkout
+
+**Date:** 2026-09-28. **Status:** accepted.
+
+## Context
+
+gnopie links gno as a library and its integration tests boot an in-memory node,
+loading realms out of a gno source tree's `examples/` and type-checking them with
+the linked VM. That tree has to be at the tag `go.mod` pins, and a mismatch fails
+as `invalid gno package; type check failed`, naming neither the version nor the
+line.
+
+Requiring it for the whole suite meant a contributor could run **nothing** until
+they had a 400MB checkout at exactly the right tag. It also meant the suite was
+slow enough not to run in a loop: every test built its own node, seventeen of them,
+to ask read-only questions of the same genesis.
+
+## Decision
+
+Three changes:
+
+1. **One shared node** for read-only tests, owned by `TestMain`. Only tests that
+   broadcast get one of their own, because a committed transaction is visible to
+   everything else on the same chain.
+2. **A missing GNOROOT skips**, loudly, rather than failing. `-short` does the
+   same. The pure tests, roughly 160 assertions over path parsing, fee
+   arithmetic, config and the generated script, run in about a tenth of a second
+   with nothing on disk.
+3. **CI runs both**: a fast `unit` job with no checkout at all, and a `test` job
+   that checks gno out at the pinned tag, so nothing is skipped where it counts.
+
+## The trap this walked into first
+
+The shared node was originally built lazily from the first test that asked for
+it, using that test's `*testing.T`. `t.TempDir()` is removed when **that** test
+returns, so the keybase and the pre-warmed discovery cache vanished under every
+test that ran afterwards. The symptom was `file is not available` from queries
+that had quietly been re-pointed at the real gno.land, several tests later and
+with nothing naming the cause. `TestMain` owns both for this reason.

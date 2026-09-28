@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="gnopie">
+  <title>gnopie</title>
+  <!-- A pie chart that is also a pie, with one slice cut out and served.
+       The joke is the tool's whole argument: you do not guess how big the
+       slice is, you measure it, and the slice on the plate is the gas the
+       chain actually reported. The gauge needle in the cut is the measuring.
+
+       Green is #7ee787, the same accent scripts/termsvg.py uses for a prompt,
+       so the logo and the terminal captures are one palette. -->
+  <rect width="256" height="256" rx="56" fill="#0d1117"/>
+
+  <!-- the pie, minus the slice that was served -->
+  <path d="M128 128 L128 42 A86 86 0 1 0 189 189 Z"
+        fill="none" stroke="#7ee787" stroke-width="14" stroke-linejoin="round"/>
+
+  <!-- the measured slice, sitting slightly apart -->
+  <path d="M146 116 L152 46 A82 82 0 0 1 205 99 Z"
+        fill="#7ee787" fill-opacity="0.22" stroke="#7ee787"
+        stroke-width="12" stroke-linejoin="round"/>
+
+  <!-- the needle: what makes it a gauge and not just dessert -->
+  <line x1="128" y1="128" x2="93" y2="86" stroke="#d2a8ff" stroke-width="11" stroke-linecap="round"/>
+  <circle cx="128" cy="128" r="12" fill="#d2a8ff"/>
+</svg>

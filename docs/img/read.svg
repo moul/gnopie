@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="430" height="190" viewBox="0 0 430 190" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13">
+<rect width="430" height="190" rx="10" fill="#11131a"/>
+<rect width="430" height="34" rx="10" fill="#0d1117"/>
+<rect y="24" width="430" height="10" fill="#0d1117"/>
+<circle cx="18" cy="17.0" r="5.5" fill="#ff5f56"/>
+<circle cx="36" cy="17.0" r="5.5" fill="#ffbd2e"/>
+<circle cx="54" cy="17.0" r="5.5" fill="#27c93f"/>
+<text x="215.0" y="21.5" fill="#8b949e" text-anchor="middle" font-size="12">gnopie READ: the source, from the chain</text>
+<text x="18" y="56" fill="#7ee787">$</text>
+<text x="34.8" y="56" fill="#d2a8ff">gnopie READ gno.land/r/demo/counter.Increment</text>
+<text x="18" y="76" fill="#c9d1d9" xml:space="preserve">// gno.land/r/demo/counter/counter.gno</text>
+<text x="18" y="96" fill="#c9d1d9" xml:space="preserve">func Increment(_ realm) int {</text>
+<text x="18" y="116" fill="#c9d1d9" xml:space="preserve">	counter++</text>
+<text x="18" y="136" fill="#c9d1d9" xml:space="preserve">	return counter</text>
+<text x="18" y="156" fill="#c9d1d9" xml:space="preserve">}</text>
+</svg>

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="985" height="1070" viewBox="0 0 985 1070" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13">
+<rect width="985" height="1070" rx="10" fill="#11131a"/>
+<rect width="985" height="34" rx="10" fill="#0d1117"/>
+<rect y="24" width="985" height="10" fill="#0d1117"/>
+<circle cx="18" cy="17.0" r="5.5" fill="#ff5f56"/>
+<circle cx="36" cy="17.0" r="5.5" fill="#ffbd2e"/>
+<circle cx="54" cy="17.0" r="5.5" fill="#27c93f"/>
+<text x="492.5" y="21.5" fill="#8b949e" text-anchor="middle" font-size="12">gnopie --help</text>
+<text x="18" y="56" fill="#7ee787">$</text>
+<text x="34.8" y="56" fill="#d2a8ff">gnopie --help</text>
+<text x="18" y="76" fill="#c9d1d9" xml:space="preserve">USAGE</text>
+<text x="18" y="96" fill="#8b949e" xml:space="preserve">  gnopie [flags] [VERB] &lt;expression&gt;</text>
+<text x="18" y="136" fill="#c9d1d9" xml:space="preserve">gnopie is an opinionated CLI for gno.land chains, inspired by httpie.</text>
+<text x="18" y="176" fill="#c9d1d9" xml:space="preserve">Network configuration is auto-discovered via gnoconnect meta tags.</text>
+<text x="18" y="216" fill="#c9d1d9" xml:space="preserve">Examples:</text>
+<text x="18" y="236" fill="#8b949e" xml:space="preserve">  gnopie gno.land/r/gnoland/blog                          Browse a realm (Render)</text>
+<text x="18" y="256" fill="#8b949e" xml:space="preserve">  gnopie &#x27;gno.land/r/gnoland/blog.Render(&quot;&quot;)&#x27;             Evaluate a function</text>
+<text x="18" y="276" fill="#8b949e" xml:space="preserve">  gnopie gno.land                                          Network info</text>
+<text x="18" y="296" fill="#8b949e" xml:space="preserve">  gnopie g1manfred47kzduec920z88wfr64ylksmdcedlf5         Inspect address</text>
+<text x="18" y="316" fill="#8b949e" xml:space="preserve">  gnopie https://gno.land/r/gnoland/blog:p/beta-mainnet   Paste gnoweb URL</text>
+<text x="18" y="336" fill="#8b949e" xml:space="preserve">  gnopie INSPECT gno.land/r/gov/dao                        List files + functions</text>
+<text x="18" y="356" fill="#8b949e" xml:space="preserve">  gnopie READ gno.land/r/gnoland/blog.ModAddPost           Function source code</text>
+<text x="18" y="376" fill="#8b949e" xml:space="preserve">  gnopie READ gno.land/r/gnoland/blog/admin.gno            Read a specific file</text>
+<text x="18" y="396" fill="#8b949e" xml:space="preserve">  gnopie CALL &#x27;gno.land/r/demo/wugnot.Deposit()&#x27;          Sign &amp; broadcast tx</text>
+<text x="18" y="416" fill="#8b949e" xml:space="preserve">  gnopie RUN &#x27;gno.land/r/demo/counter.Increment()&#x27;        Execute via maketx run</text>
+<text x="18" y="436" fill="#8b949e" xml:space="preserve">  gnopie CALL --print-gnokey-command &#x27;gno.land/r/demo/wugnot.Deposit()&#x27;</text>
+<text x="18" y="456" fill="#8b949e" xml:space="preserve">  gnopie --json gno.land/r/gnoland/blog | jq .result       JSON for piping</text>
+<text x="18" y="476" fill="#8b949e" xml:space="preserve">  gnopie --debug gno.land/r/gnoland/blog                   Show internals</text>
+<text x="18" y="516" fill="#c9d1d9" xml:space="preserve">Verbs:</text>
+<text x="18" y="536" fill="#8b949e" xml:space="preserve">  GET      (default) Render for realms, EVAL for calls, READ for symbols</text>
+<text x="18" y="556" fill="#8b949e" xml:space="preserve">  EVAL     Evaluate a read-only function call</text>
+<text x="18" y="576" fill="#8b949e" xml:space="preserve">  READ     Read source code, file, or variable value</text>
+<text x="18" y="596" fill="#8b949e" xml:space="preserve">  INSPECT  Inspect network, realm, or symbol in detail</text>
+<text x="18" y="616" fill="#8b949e" xml:space="preserve">  CALL     Sign and broadcast a MsgCall transaction</text>
+<text x="18" y="636" fill="#8b949e" xml:space="preserve">  RUN      Generate code and broadcast a MsgRun transaction</text>
+<text x="18" y="676" fill="#c9d1d9" xml:space="preserve">SUBCOMMANDS</text>
+<text x="18" y="696" fill="#8b949e" xml:space="preserve">  config      Manage gnopie configuration.</text>
+<text x="18" y="716" fill="#8b949e" xml:space="preserve">  completion  Generate shell completion scripts.</text>
+<text x="18" y="736" fill="#8b949e" xml:space="preserve">  version     Print the version, and the gno it is pinned to.</text>
+<text x="18" y="776" fill="#c9d1d9" xml:space="preserve">FLAGS</text>
+<text x="18" y="796" fill="#8b949e" xml:space="preserve">  -all=false                      show all details (files in INSPECT, etc.)</text>
+<text x="18" y="816" fill="#8b949e" xml:space="preserve">  -debug=false                    show debug info (cache, discovery, queries)</text>
+<text x="18" y="836" fill="#8b949e" xml:space="preserve">  -dry-run=false                  simulate without broadcasting</text>
+<text x="18" y="856" fill="#8b949e" xml:space="preserve">  -gas-fee ...                    gas fee in ugnot (default: derived from the measured gas)</text>
+<text x="18" y="876" fill="#7ee787" xml:space="preserve">  -gas-wanted 0                   gas limit (0 = measure it against the chain)</text>
+<text x="18" y="896" fill="#8b949e" xml:space="preserve">  -home /home/user/.config/gno    gno config home directory</text>
+<text x="18" y="916" fill="#8b949e" xml:space="preserve">  -insecure-password-stdin=false  read the keybase password from stdin rather than prompting (for scripts and CI)</text>
+<text x="18" y="936" fill="#8b949e" xml:space="preserve">  -json=false                     output as JSON</text>
+<text x="18" y="956" fill="#8b949e" xml:space="preserve">  -key ...                        key name or address from keybase</text>
+<text x="18" y="976" fill="#8b949e" xml:space="preserve">  -print=false                    alias for -print-gnokey-command</text>
+<text x="18" y="996" fill="#8b949e" xml:space="preserve">  -print-gnokey-command=false     print the equivalent gnokey command instead of executing</text>
+<text x="18" y="1016" fill="#8b949e" xml:space="preserve">  -quiet=false                    suppress non-essential output</text>
+<text x="18" y="1036" fill="#8b949e" xml:space="preserve">  -send ...                       coins to send with CALL/RUN (e.g., 1000000ugnot)</text>
+</svg>

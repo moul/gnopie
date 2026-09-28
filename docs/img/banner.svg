@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" width="960" height="300" role="img" aria-label="gnopie: httpie, but for gno.land">
+  <title>gnopie</title>
+  <rect width="960" height="300" fill="#0d1117"/>
+  <g transform="translate(70,54) scale(0.75)">
+    <path d="M128 128 L128 42 A86 86 0 1 0 189 189 Z"
+          fill="none" stroke="#7ee787" stroke-width="14" stroke-linejoin="round"/>
+    <path d="M146 116 L152 46 A82 82 0 0 1 205 99 Z"
+          fill="#7ee787" fill-opacity="0.22" stroke="#7ee787"
+          stroke-width="12" stroke-linejoin="round"/>
+    <line x1="128" y1="128" x2="93" y2="86" stroke="#d2a8ff" stroke-width="11" stroke-linecap="round"/>
+    <circle cx="128" cy="128" r="12" fill="#d2a8ff"/>
+  </g>
+  <text x="300" y="132" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+        font-size="76" font-weight="700" fill="#7ee787">gnopie</text>
+  <text x="302" y="178" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+        font-size="25" fill="#c9d1d9">httpie, but for gno.land</text>
+  <text x="302" y="218" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+        font-size="21" fill="#8b949e">the gas is measured, not guessed</text>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2724" height="270" viewBox="0 0 2724 270" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13">
+<rect width="2724" height="270" rx="10" fill="#11131a"/>
+<rect width="2724" height="34" rx="10" fill="#0d1117"/>
+<rect y="24" width="2724" height="10" fill="#0d1117"/>
+<circle cx="18" cy="17.0" r="5.5" fill="#ff5f56"/>
+<circle cx="36" cy="17.0" r="5.5" fill="#ffbd2e"/>
+<circle cx="54" cy="17.0" r="5.5" fill="#27c93f"/>
+<text x="1362.0" y="21.5" fill="#8b949e" text-anchor="middle" font-size="12">gnopie INSPECT: what is in there</text>
+<text x="18" y="56" fill="#7ee787">$</text>
+<text x="34.8" y="56" fill="#d2a8ff">gnopie INSPECT gno.land/r/demo/counter</text>
+<text x="18" y="76" fill="#c9d1d9" xml:space="preserve">Realm: gno.land/r/demo/counter</text>
+<text x="18" y="96" fill="#c9d1d9" xml:space="preserve">Storage: storage: 2939, deposit: 293900</text>
+<text x="18" y="136" fill="#c9d1d9" xml:space="preserve">Functions:</text>
+<text x="18" y="156" fill="#8b949e" xml:space="preserve">  func Increment(interface {.seal func(); Address func() address; IsCode func() bool; IsCurrent func() bool; IsEphemeral func() bool; IsUser func() bool; IsUserCall func() bool; IsUserRun func() bool; PkgPath func() string; Previous func() realm; String func() string; Sub func(string) realm; Subpath func() string}) int</text>
+<text x="18" y="176" fill="#8b949e" xml:space="preserve">  func Render(string) string</text>
+<text x="18" y="216" fill="#c9d1d9" xml:space="preserve">Variables:</text>
+<text x="18" y="236" fill="#8b949e" xml:space="preserve">  counter int</text>
+</svg>
