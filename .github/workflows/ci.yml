@@ -1,0 +1,37 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+      - run: go vet ./...
+
+  # The suite needs a gno source tree whose version matches the pin in go.mod,
+  # because it loads realms out of examples/ and type-checks them with the VM the
+  # module links. Checked out by tag for that reason and not by branch: master
+  # would drift past the pin and fail as `invalid gno package; type check failed`,
+  # which names neither the version nor the line.
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - id: pin
+        run: echo "ref=$(go list -m -f '{{.Version}}' github.com/gnolang/gno)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: gnolang/gno
+          ref: ${{ steps.pin.outputs.ref }}
+          path: gnoroot
+      - run: GNOROOT="$GITHUB_WORKSPACE/gnoroot" go test ./...
