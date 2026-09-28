@@ -1,4 +1,4 @@
-module github.com/moul/gnopie
+module moul.io/gnopie
 
 go 1.25.9
 

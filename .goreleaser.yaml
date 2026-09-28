@@ -2,6 +2,13 @@
 # require a Go toolchain. Run by .github/workflows/release.yml on a tag.
 version: 2
 
+# Pinned rather than inferred. goreleaser derives ProjectName from the repository
+# when it is unset, and it is interpolated into every archive name. The module
+# path is moul.io/gnopie while the repo is github.com/moul/gnopie, so leaving it
+# implicit makes the published filenames depend on which of the two goreleaser
+# happens to look at, and the README's curl one-liner hardcodes the answer.
+project_name: gnopie
+
 before:
   hooks:
     # Not `go mod tidy`: a release must build exactly what the tag holds, and a

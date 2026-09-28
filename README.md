@@ -13,6 +13,7 @@
 <p align="center">
   <a href="https://github.com/moul/gnopie/actions/workflows/ci.yml"><img src="https://github.com/moul/gnopie/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/moul/gnopie/releases/latest"><img src="https://img.shields.io/github/v/release/moul/gnopie?label=release&color=7ee787" alt="Latest release"></a>
+  <a href="https://pkg.go.dev/moul.io/gnopie"><img src="https://pkg.go.dev/badge/moul.io/gnopie.svg" alt="Go Reference"></a>
   <a href="./LICENSE.md"><img src="https://img.shields.io/badge/license-GNO%20NGPL-97ca00.svg" alt="License"></a>
   <a href="./SECURITY.md"><img src="https://img.shields.io/badge/audited-never-f0883e.svg" alt="Unaudited"></a>
 </p>
@@ -97,7 +98,7 @@ Now both numbers are derived from the same measurement:
 ## Install
 
 ```sh
-go install github.com/moul/gnopie@latest
+go install moul.io/gnopie@latest
 ```
 
 or take a binary, on a machine with no Go at all:
