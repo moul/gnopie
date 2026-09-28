@@ -70,14 +70,35 @@ func TestEVAL_FunctionCall(t *testing.T) {
 	assert.Contains(t, sharedEnv(t).runOK("EVAL", counterRealm+`.Render("")`), `"0"`)
 }
 
-func TestEVAL_CrossingFunctionGetsCrossInjected(t *testing.T) {
-	// Increment is a crossing function, so qeval needs `cross`. Evaluating a
-	// state-changing function still fails ("invalid non-origin call"), which is
-	// fine: what must NOT appear is the argument-arity error, because that is
-	// what a missing cross looks like.
-	_, stderr := sharedEnv(t).run("EVAL", counterRealm+".Increment()")
-	assert.NotContains(t, stderr, "missing realm argument",
-		"crossing function should have `cross` auto-injected")
+// EVAL on a crossing function has to RETURN A VALUE.
+//
+// The test this replaces asserted only that the string "missing realm argument"
+// was absent from stderr. That stayed true for months while EVAL was completely
+// broken for every crossing function: gnopie prepended a bare `cross`, the VM
+// answered "use of builtin cross not in function call", and the assertion never
+// noticed because it was looking for a different error.
+//
+// A negative assertion about one error message is not a test that a feature
+// works. This one reads the result.
+func TestEVAL_CrossingFunctionReturnsAValue(t *testing.T) {
+	env := newEnv(t, counterRealm) // reads state the other tests may change
+	stdout, stderr := env.run("EVAL", counterRealm+".Increment()")
+
+	require.NotContains(t, stderr, "error:", "EVAL on a crossing function failed: %s", stderr)
+	require.Contains(t, stdout, "int", "expected a typed value, got %q (stderr: %s)", stdout, stderr)
+
+	// The two spellings that have each been wrong at some point. Neither should
+	// ever reach the chain from here: the VM injects `cur` itself, in
+	// MaybeInjectCurForEval.
+	require.NotContains(t, stderr, "use of builtin cross",
+		"gnopie injected a cross the VM did not want")
+	require.NotContains(t, stderr, "missing realm argument")
+}
+
+// The non-crossing path, so a future "fix" that starts injecting again has to
+// break one of the two.
+func TestEVAL_NonCrossingFunctionIsUnaffected(t *testing.T) {
+	assert.Contains(t, sharedEnv(t).runOK("EVAL", counterRealm+`.Render("")`), `"0"`)
 }
 
 // --- INSPECT and READ ---

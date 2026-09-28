@@ -82,20 +82,28 @@ func execEval(_ context.Context, cfg *baseCfg, expr string, io commands.IO) erro
 		return err
 	}
 
+	// No `cross` is injected here, on purpose, and this is the third time this
+	// tool has had to learn the same lesson about spelling a VM builtin by hand.
+	//
+	// It used to prepend a bare `cross` for crossing functions. Against gno
+	// v1.5.0 that fails outright:
+	//
+	//	use of builtin cross not in function call
+	//	--- preprocess stack ---
+	//
+	// so EVAL was broken for EVERY crossing function, which is most of the
+	// interesting ones. It went unnoticed because the test asserted only that a
+	// DIFFERENT error ("missing realm argument") was absent, and that stayed true
+	// while the feature did not work at all.
+	//
+	// The chain does it itself: QueryEval calls m.MaybeInjectCurForEval(xx)
+	// (gno.land/pkg/sdk/vm/keeper.go), which prepends `.cur` when the parsed
+	// expression calls a crossing function in that package. Injecting anything
+	// here is fighting it. Verified 2026-09-28 against v1.5.0: with this removed,
+	// `EVAL counter.Increment()` returns `(1 int)` where it previously errored.
 	var qevalExpr string
 	if p.Kind == PathCall {
-		args := joinArgs(p.Args)
-		// Auto-inject `cross` for crossing functions
-		crossing := isCrossingFunc(c, cfg, p.PkgPath, p.Symbol)
-		cfg.debugf(io, "crossing        %s.%s=%v", p.PkgPath, p.Symbol, crossing)
-		if crossing {
-			if args == "" {
-				args = "cross"
-			} else {
-				args = "cross," + args
-			}
-		}
-		qevalExpr = p.Symbol + "(" + args + ")"
+		qevalExpr = p.Symbol + "(" + joinArgs(p.Args) + ")"
 	} else {
 		qevalExpr = p.Symbol
 	}
@@ -695,8 +703,15 @@ func isCrossingFunc(client *gnoclient.Client, cfg *baseCfg, pkgPath, funcName st
 
 	for _, sig := range sigs {
 		if sig.FuncName == funcName && len(sig.Params) > 0 {
-			// Crossing functions have realm as first param
-			return strings.Contains(sig.Params[0].Type, "realm")
+			// A crossing function takes a realm first. Asked through cleanType
+			// so there is ONE answer to "is this the realm type", the one in
+			// types.go that matches on the interface's method set.
+			//
+			// This was strings.Contains(type, "realm"), which is true of any
+			// type whose name happens to contain the word: a `myrealm` argument,
+			// or a struct with a `realm` field, both read as crossing and got a
+			// cross(cur) they cannot accept.
+			return cleanType(sig.Params[0].Type) == "realm"
 		}
 	}
 	return false
