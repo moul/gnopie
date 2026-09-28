@@ -105,7 +105,14 @@ gnopie --debug gno.land/r/gnoland/blog
 ```
 
 `--print-gnokey-command` is the one to reach for when you do not trust it: it prints the
-`gnokey` invocation, measured gas and all, and runs nothing.
+`gnokey` invocation, measured gas and all, and broadcasts nothing.
+
+**It will never print a gas number it did not measure.** It used to print a hardcoded
+`10000000`, which is the one thing this tool exists to stop: the same call measured
+11,732,203 against mainnet, so a command copied out of it failed exactly the way a
+hand-written one does. Measuring needs a signature, so it needs a key; without one the
+flag is left out and the reason is printed beside it, rather than a plausible number
+being invented to fill the gap.
 
 ## Version pinning
 
