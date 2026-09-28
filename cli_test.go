@@ -3,20 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/gnolang/gno/gno.land/pkg/gnoland"
-	"github.com/gnolang/gno/gno.land/pkg/gnoland/ugnot"
 	"github.com/gnolang/gno/gno.land/pkg/integration"
-	"github.com/gnolang/gno/gnovm/pkg/gnoenv"
 	"github.com/gnolang/gno/tm2/pkg/commands"
-	"github.com/gnolang/gno/tm2/pkg/crypto/keys"
-	"github.com/gnolang/gno/tm2/pkg/log"
-	"github.com/gnolang/gno/tm2/pkg/std"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,20 +31,9 @@ type cliTestCase struct {
 }
 
 func TestCLI(t *testing.T) {
-	// Start a shared in-memory node with counter realm
-	rootdir := gnoenv.RootDir()
-	config := integration.TestingMinimalNodeConfig(rootdir)
-	meta := loadCLITestPkgs(t, rootdir, "gno.land/r/demo/counter")
-	state := config.Genesis.AppState.(gnoland.GnoGenesisState)
-	state.Txs = append(state.Txs, meta...)
-	config.Genesis.AppState = state
-
-	node, remoteAddr := integration.TestingInMemoryNode(t, log.NewNoopLogger(), config)
-	t.Cleanup(func() { node.Stop() })
-
-	// Create temp home with keybase and cached remote
-	home := t.TempDir()
-	setupCLITestHome(t, home, remoteAddr)
+	// Read-only throughout, so it shares the node with every other read-only
+	// test rather than booting one of its own.
+	home := sharedEnv(t).home
 
 	tc := []cliTestCase{
 		// --- GET (default verb) ---
@@ -320,18 +300,8 @@ func TestCLI(t *testing.T) {
 // TestCLI_CALL_Stateful tests CALL and RUN with actual state changes.
 // These are separate because they mutate state and can't be repeated.
 func TestCLI_CALL_Stateful(t *testing.T) {
-	rootdir := gnoenv.RootDir()
-	config := integration.TestingMinimalNodeConfig(rootdir)
-	meta := loadCLITestPkgs(t, rootdir, "gno.land/r/demo/counter")
-	state := config.Genesis.AppState.(gnoland.GnoGenesisState)
-	state.Txs = append(state.Txs, meta...)
-	config.Genesis.AppState = state
-
-	node, remoteAddr := integration.TestingInMemoryNode(t, log.NewNoopLogger(), config)
-	t.Cleanup(func() { node.Stop() })
-
-	home := t.TempDir()
-	setupCLITestHome(t, home, remoteAddr)
+	// Broadcasts, so it gets a chain to itself.
+	home := newEnv(t, counterRealm).home
 
 	// Verify counter starts at 0
 	runCLITest(t, home, cliTestCase{
@@ -388,7 +358,6 @@ func runCLITest(t *testing.T, home string, test cliTestCase) {
 		dryRun:         test.dryRun,
 		debug:          test.debug,
 		keyName:        integration.DefaultAccount_Name,
-		gasFee:         "1000000ugnot",
 	}
 
 	err := dispatch(context.Background(), cfg, test.args, io)
@@ -405,12 +374,13 @@ func runCLITestSigning(t *testing.T, home string, test cliTestCase) {
 	io.SetOut(commands.WriteNopCloser(mockOut))
 	io.SetErr(commands.WriteNopCloser(mockErr))
 
+	// Neither gasWanted nor gasFee is set: gnopie measures the first and
+	// derives the second, which is the behaviour under test. Pinning them here
+	// is what used to make the suite green without ever running that code.
 	cfg := &baseCfg{
 		home:           home,
 		keyName:        integration.DefaultAccount_Name,
 		insecureNoPass: true,
-		gasWanted:      10_000_000,
-		gasFee:         ugnot.ValueString(1000000),
 		jsonOut:        test.jsonOut,
 		debug:          test.debug,
 	}
@@ -469,53 +439,4 @@ func checkCLIOutput(t *testing.T, test cliTestCase, stdout, stderr string, err e
 	if !stderrShouldBeEmpty {
 		require.Contains(t, stderr, test.stderrShouldContain, "stderr should contain")
 	}
-}
-
-func setupCLITestHome(t *testing.T, home, remoteAddr string) {
-	t.Helper()
-
-	// Cached remote pointing to test node
-	cacheFile := cachePath(home, "gno.land")
-	require.NoError(t, os.MkdirAll(filepath.Dir(cacheFile), 0o755))
-	cacheContent := fmt.Sprintf(
-		"cached_at = 2099-01-01T00:00:00Z\nchain_id = \"tendermint_test\"\nname = \"gno.land\"\nrpc = %q\n",
-		remoteAddr,
-	)
-	require.NoError(t, os.WriteFile(cacheFile, []byte(cacheContent), 0o644))
-
-	// Config with default key
-	configDir := filepath.Join(home, "gnopie")
-	require.NoError(t, os.MkdirAll(configDir, 0o755))
-	require.NoError(t, os.WriteFile(
-		filepath.Join(configDir, "config.toml"),
-		[]byte(fmt.Sprintf("key = %q\n", integration.DefaultAccount_Name)),
-		0o644,
-	))
-
-	// Keybase with test account
-	kb, err := keys.NewKeyBaseFromDir(home)
-	require.NoError(t, err)
-	_, err = kb.CreateAccount(
-		integration.DefaultAccount_Name,
-		integration.DefaultAccount_Seed,
-		"", "", 0, 0,
-	)
-	require.NoError(t, err)
-}
-
-func loadCLITestPkgs(t *testing.T, rootdir string, paths ...string) []gnoland.TxWithMetadata {
-	t.Helper()
-	loader := integration.NewPkgsLoader()
-	examplesDir := filepath.Join(rootdir, "examples")
-	for _, path := range paths {
-		path = filepath.Join(examplesDir, filepath.Clean(path))
-		err := loader.LoadPackage(examplesDir, path, "")
-		require.NoError(t, err)
-	}
-	privKey, err := integration.GeneratePrivKeyFromMnemonic(integration.DefaultAccount_Seed, "", 0, 0)
-	require.NoError(t, err)
-	defaultFee := std.NewFee(50000, std.MustParseCoin(ugnot.ValueString(1000000)))
-	meta, err := loader.GenerateTxs(privKey, defaultFee, nil)
-	require.NoError(t, err)
-	return meta
 }

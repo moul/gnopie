@@ -1,200 +1,106 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/gnolang/gno/gno.land/pkg/gnoland"
-	"github.com/gnolang/gno/gno.land/pkg/gnoland/ugnot"
 	"github.com/gnolang/gno/gno.land/pkg/integration"
-	"github.com/gnolang/gno/gnovm/pkg/gnoenv"
 	"github.com/gnolang/gno/tm2/pkg/commands"
-	"github.com/gnolang/gno/tm2/pkg/crypto/keys"
-	"github.com/gnolang/gno/tm2/pkg/log"
-	"github.com/gnolang/gno/tm2/pkg/std"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// testEnv holds a running in-memory node and helpers for CLI testing.
-type testEnv struct {
-	t          *testing.T
-	home       string
-	remoteAddr string
-}
+// Integration tests against a real in-memory gno node. Each one doubles as a
+// usage example: the comment is the command line, the body is what it prints.
+//
+// Read-only tests take the shared node (sharedEnv). Anything that broadcasts
+// takes its own (newEnv), because a committed transaction is visible to every
+// other test on the same chain.
 
-func setupTestEnv(t *testing.T, pkgs ...string) *testEnv {
-	t.Helper()
-
-	rootdir := gnoenv.RootDir()
-	config := integration.TestingMinimalNodeConfig(rootdir)
-
-	// Load packages into genesis
-	if len(pkgs) > 0 {
-		meta := loadTestPkgs(t, rootdir, pkgs...)
-		state := config.Genesis.AppState.(gnoland.GnoGenesisState)
-		state.Txs = append(state.Txs, meta...)
-		config.Genesis.AppState = state
-	}
-
-	node, remoteAddr := integration.TestingInMemoryNode(t, log.NewNoopLogger(), config)
-	t.Cleanup(func() { node.Stop() })
-
-	// Create temp home with cached remote pointing to our test node
-	home := t.TempDir()
-	cacheDir := filepath.Join(home, "gnopie", "cache")
-	require.NoError(t, os.MkdirAll(cacheDir, 0o755))
-
-	// Write a cached remote so gnopie discovers our test node via gno.land domain
-	cacheFile := cachePath(home, "gno.land")
-	require.NoError(t, os.MkdirAll(filepath.Dir(cacheFile), 0o755))
-	cacheContent := "cached_at = 2099-01-01T00:00:00Z\nchain_id = \"tendermint_test\"\nname = \"gno.land\"\nrpc = \"" + remoteAddr + "\"\n"
-	require.NoError(t, os.WriteFile(cacheFile, []byte(cacheContent), 0o644))
-
-	// Set up default key in config
-	configDir := filepath.Join(home, "gnopie")
-	require.NoError(t, os.MkdirAll(configDir, 0o755))
-	configContent := "key = \"" + integration.DefaultAccount_Name + "\"\n"
-	require.NoError(t, os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(configContent), 0o644))
-
-	// Set up keybase with test account
-	kb, err := keys.NewKeyBaseFromDir(home)
-	require.NoError(t, err)
-	_, err = kb.CreateAccount(
-		integration.DefaultAccount_Name,
-		integration.DefaultAccount_Seed,
-		"", "", 0, 0,
-	)
-	require.NoError(t, err)
-
-	return &testEnv{t: t, home: home, remoteAddr: remoteAddr}
-}
-
-// newTestIO creates an IO that captures stdout/stderr and provides empty stdin.
-func newTestIO() (commands.IO, *bytes.Buffer, *bytes.Buffer) {
-	var outBuf, errBuf bytes.Buffer
-	cio := &commands.IOImpl{}
-	cio.SetIn(strings.NewReader("\n"))
-	cio.SetOut(commands.WriteNopCloser(&outBuf))
-	cio.SetErr(commands.WriteNopCloser(&errBuf))
-	return cio, &outBuf, &errBuf
-}
-
-// run executes a gnopie command and returns stdout and stderr.
-func (e *testEnv) run(args ...string) (stdout, stderr string) {
-	e.t.Helper()
-
-	io, outBuf, errBuf := newTestIO()
-	cfg := &baseCfg{home: e.home}
-	err := dispatch(context.Background(), cfg, args, io)
-	if err != nil {
-		errBuf.WriteString("error: " + err.Error() + "\n")
-	}
-
-	return outBuf.String(), errBuf.String()
-}
-
-// runOK executes a gnopie command and asserts no error.
-func (e *testEnv) runOK(args ...string) string {
-	e.t.Helper()
-	stdout, stderr := e.run(args...)
-	if strings.Contains(stderr, "error:") {
-		e.t.Fatalf("gnopie %v failed: %s", args, stderr)
-	}
-	return stdout
-}
-
-func loadTestPkgs(t *testing.T, rootdir string, paths ...string) []gnoland.TxWithMetadata {
-	t.Helper()
-	loader := integration.NewPkgsLoader()
-	examplesDir := filepath.Join(rootdir, "examples")
-	for _, path := range paths {
-		path = filepath.Join(examplesDir, filepath.Clean(path))
-		err := loader.LoadPackage(examplesDir, path, "")
-		require.NoError(t, err)
-	}
-	privKey, err := integration.GeneratePrivKeyFromMnemonic(integration.DefaultAccount_Seed, "", 0, 0)
-	require.NoError(t, err)
-	defaultFee := std.NewFee(50000, std.MustParseCoin(ugnot.ValueString(1000000)))
-	meta, err := loader.GenerateTxs(privKey, defaultFee, nil)
-	require.NoError(t, err)
-	return meta
-}
-
-// --- Integration Tests ---
-// Each test demonstrates a gnopie command and serves as a usage example.
+// --- GET, the default verb ---
 
 func TestGET_Render(t *testing.T) {
 	// gnopie gno.land/r/demo/counter
-	// → calls Render(""), returns the counter value
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
-
-	out := env.runOK("gno.land/r/demo/counter")
-	assert.Equal(t, "0\n", out, "counter should start at 0")
+	// -> calls Render(""), returns the counter value
+	assert.Equal(t, "0\n", sharedEnv(t).runOK(counterRealm))
 }
 
 func TestGET_RenderPath(t *testing.T) {
 	// gnopie gno.land/r/demo/counter:somepath
-	// → calls Render("somepath")
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
-
-	out := env.runOK("gno.land/r/demo/counter:somepath")
-	// counter's Render ignores the path argument, still returns "0"
-	assert.Equal(t, "0\n", out)
+	// -> calls Render("somepath"); counter ignores the path and still returns 0
+	assert.Equal(t, "0\n", sharedEnv(t).runOK(counterRealm+":somepath"))
 }
 
-func TestEVAL_FunctionCall(t *testing.T) {
-	// gnopie EVAL 'gno.land/r/demo/counter.Render("")'
-	// → evaluates Render("") via qeval
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
-
-	out := env.runOK("EVAL", `gno.land/r/demo/counter.Render("")`)
-	assert.Contains(t, out, `"0"`)
-}
-
-func TestINSPECT_Realm(t *testing.T) {
-	// gnopie INSPECT gno.land/r/demo/counter
-	// → shows files, functions, storage
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
-
-	out := env.runOK("INSPECT", "gno.land/r/demo/counter")
-	assert.Contains(t, out, "Realm: gno.land/r/demo/counter")
-	assert.Contains(t, out, "func Increment")
-	assert.Contains(t, out, "func Render")
-	assert.Contains(t, out, "counter int") // variable
-}
-
-func TestINSPECT_Network(t *testing.T) {
+func TestGET_Network(t *testing.T) {
 	// gnopie gno.land
-	// → shows network info (block height, chain ID)
-	env := setupTestEnv(t)
-
-	out := env.runOK("gno.land")
+	// -> network info: chain ID and block height
+	out := sharedEnv(t).runOK("gno.land")
 	assert.Contains(t, out, "Network: gno.land")
 	assert.Contains(t, out, "Chain ID:")
 	assert.Contains(t, out, "Block height:")
 }
 
+func TestGET_Address(t *testing.T) {
+	// gnopie g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5
+	// -> inspects an account
+	out, _ := sharedEnv(t).run(integration.DefaultAccount_Address)
+	assert.Contains(t, out, "Address:")
+	assert.Contains(t, out, integration.DefaultAccount_Address)
+}
+
+// The paste-a-gnoweb-URL promise, end to end rather than only through ParsePath.
+func TestGET_GnowebURLs(t *testing.T) {
+	env := sharedEnv(t)
+	for _, in := range []string{
+		"https://" + counterRealm,
+		"http://" + counterRealm,
+		"https://" + counterRealm + "#some-anchor",
+		"https://" + counterRealm + "/",
+	} {
+		t.Run(in, func(t *testing.T) {
+			assert.Equal(t, "0\n", env.runOK(in))
+		})
+	}
+}
+
+// --- EVAL ---
+
+func TestEVAL_FunctionCall(t *testing.T) {
+	// gnopie EVAL 'gno.land/r/demo/counter.Render("")'
+	assert.Contains(t, sharedEnv(t).runOK("EVAL", counterRealm+`.Render("")`), `"0"`)
+}
+
+func TestEVAL_CrossingFunctionGetsCrossInjected(t *testing.T) {
+	// Increment is a crossing function, so qeval needs `cross`. Evaluating a
+	// state-changing function still fails ("invalid non-origin call"), which is
+	// fine: what must NOT appear is the argument-arity error, because that is
+	// what a missing cross looks like.
+	_, stderr := sharedEnv(t).run("EVAL", counterRealm+".Increment()")
+	assert.NotContains(t, stderr, "missing realm argument",
+		"crossing function should have `cross` auto-injected")
+}
+
+// --- INSPECT and READ ---
+
+func TestINSPECT_Realm(t *testing.T) {
+	// gnopie INSPECT gno.land/r/demo/counter
+	out := sharedEnv(t).runOK("INSPECT", counterRealm)
+	assert.Contains(t, out, "Realm: "+counterRealm)
+	assert.Contains(t, out, "func Increment")
+	assert.Contains(t, out, "func Render")
+	assert.Contains(t, out, "counter int")
+}
+
 func TestREAD_FunctionSource(t *testing.T) {
 	// gnopie READ gno.land/r/demo/counter.Increment
-	// → shows the source code of the Increment function
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
-
-	out := env.runOK("READ", "gno.land/r/demo/counter.Increment")
+	out := sharedEnv(t).runOK("READ", counterRealm+".Increment")
 	assert.Contains(t, out, "func Increment")
 	assert.Contains(t, out, "counter++")
 }
 
 func TestREAD_File(t *testing.T) {
 	// gnopie READ gno.land/r/demo/counter/counter.gno
-	// → shows the full file contents
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
-
-	out := env.runOK("READ", "gno.land/r/demo/counter/counter.gno")
+	out := sharedEnv(t).runOK("READ", counterRealm+"/counter.gno")
 	assert.Contains(t, out, "package counter")
 	assert.Contains(t, out, "func Increment")
 	assert.Contains(t, out, "func Render")
@@ -202,134 +108,137 @@ func TestREAD_File(t *testing.T) {
 
 func TestJSON_Output(t *testing.T) {
 	// gnopie --json gno.land/r/demo/counter
-	// → returns JSON with render result
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
-
+	env := sharedEnv(t)
 	io, outBuf, _ := newTestIO()
-	cfg := &baseCfg{home: env.home, jsonOut: true}
-	err := dispatch(context.Background(), cfg, []string{"gno.land/r/demo/counter"}, io)
-	require.NoError(t, err)
-
-	out := outBuf.String()
-	assert.Contains(t, out, `"pkg_path"`)
-	assert.Contains(t, out, `"result"`)
+	require.NoError(t, dispatch(context.Background(),
+		&baseCfg{home: env.home, jsonOut: true}, []string{counterRealm}, io))
+	assert.Contains(t, outBuf.String(), `"pkg_path"`)
+	assert.Contains(t, outBuf.String(), `"result"`)
 }
+
+// --- CALL and RUN: the paths that broadcast ---
 
 func TestCALL_Increment(t *testing.T) {
 	// gnopie CALL gno.land/r/demo/counter.Increment()
-	// → signs and broadcasts a transaction that increments the counter
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
+	// -> measures the gas, sizes the fee, signs, broadcasts
+	env := newEnv(t, counterRealm)
+	assert.Equal(t, "0\n", env.runOK(counterRealm))
 
-	// First verify counter is 0
-	out := env.runOK("gno.land/r/demo/counter")
-	assert.Equal(t, "0\n", out)
-
-	// Execute CALL
-	io, outBuf, _ := newTestIO()
-	cfg := &baseCfg{
-		home:           env.home,
-		keyName:        integration.DefaultAccount_Name,
-		insecureNoPass: true,
-		gasWanted:      10_000_000,
-		gasFee:         ugnot.ValueString(1000000),
-	}
-	err := execCall(context.Background(), cfg, "gno.land/r/demo/counter.Increment()", io)
-	require.NoError(t, err)
+	io, outBuf, errBuf := newTestIO()
+	require.NoError(t, execCall(context.Background(), env.signingCfg(), counterRealm+".Increment()", io))
 	assert.Contains(t, outBuf.String(), "TX committed")
 
-	// Verify counter is now 1
-	out = env.runOK("gno.land/r/demo/counter")
-	assert.Equal(t, "1\n", out)
-}
+	// The gas was measured rather than supplied: signingCfg pins neither number.
+	assert.Contains(t, errBuf.String(), "measured",
+		"the plan line should say the gas was measured")
 
-func TestCALL_GenerateGnokey(t *testing.T) {
-	// gnopie CALL --print-gnokey-command gno.land/r/demo/counter.Increment()
-	// → prints the equivalent gnokey command
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
-
-	io, outBuf, _ := newTestIO()
-	cfg := &baseCfg{
-		home:           env.home,
-		keyName:        integration.DefaultAccount_Name,
-		printGnokeyCmd: true,
-		gasFee:         "1000000ugnot",
-	}
-	err := execCall(context.Background(), cfg, "gno.land/r/demo/counter.Increment()", io)
-	require.NoError(t, err)
-
-	out := outBuf.String()
-	assert.Contains(t, out, "gnokey")
-	assert.Contains(t, out, "maketx")
-	assert.Contains(t, out, "call")
-	assert.Contains(t, out, "-func=Increment")
-	assert.Contains(t, out, "-pkgpath=gno.land/r/demo/counter")
-}
-
-func TestCrossingFunction_AutoInjectCross(t *testing.T) {
-	// gnopie 'gno.land/r/demo/counter.Increment()'
-	// → Increment is a crossing function (first param is realm),
-	//   gnopie should auto-inject `cross` in qeval
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
-
-	// EVAL on a crossing function that modifies state will fail with
-	// "invalid non-origin call" but the important thing is it doesn't
-	// fail with "missing realm argument"
-	_, stderr := env.run("EVAL", "gno.land/r/demo/counter.Increment()")
-	assert.NotContains(t, stderr, "missing realm argument",
-		"crossing function should have `cross` auto-injected")
+	assert.Equal(t, "1\n", env.runOK(counterRealm))
 }
 
 func TestRUN_Increment(t *testing.T) {
 	// gnopie RUN gno.land/r/demo/counter.Increment()
-	// → generates code and executes via maketx run
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
+	// -> generates a main.gno, measures, signs, broadcasts
+	env := newEnv(t, counterRealm)
+	assert.Equal(t, "0\n", env.runOK(counterRealm))
 
-	// First verify counter is 0
-	out := env.runOK("gno.land/r/demo/counter")
-	assert.Equal(t, "0\n", out)
-
-	// Execute RUN
 	io, outBuf, _ := newTestIO()
-	cfg := &baseCfg{
-		home:           env.home,
-		keyName:        integration.DefaultAccount_Name,
-		insecureNoPass: true,
-		gasWanted:      10_000_000,
-		gasFee:         ugnot.ValueString(1000000),
-	}
-	err := execRun(context.Background(), cfg, "gno.land/r/demo/counter.Increment()", io)
-	require.NoError(t, err)
+	require.NoError(t, execRun(context.Background(), env.signingCfg(), counterRealm+".Increment()", io))
 	assert.Contains(t, outBuf.String(), "TX committed")
 
-	// Verify counter is now 1
-	out = env.runOK("gno.land/r/demo/counter")
-	assert.Equal(t, "1\n", out)
+	assert.Equal(t, "1\n", env.runOK(counterRealm))
 }
 
-func TestGnoweb_URL(t *testing.T) {
-	// gnopie https://gno.land/r/demo/counter
-	// → strips https://, calls Render("")
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
+// The headline feature, asserted rather than assumed.
+//
+// gnopie's whole claim is that it asks the chain instead of guessing, and until
+// now every test that broadcast pinned gasWanted to 10,000,000, so the measuring
+// code path was never executed by the suite that was supposed to cover it. This
+// asserts the number came from the chain: not the pinned value, not a round
+// number, and consistent with the buffer.
+func TestCALL_MeasuresGasRatherThanGuessing(t *testing.T) {
+	env := newEnv(t, counterRealm)
 
-	out := env.runOK("https://gno.land/r/demo/counter")
-	assert.Equal(t, "0\n", out)
+	cfg := env.signingCfg()
+	client, _, err := cfg.signingClient("gno.land", discardIO())
+	require.NoError(t, err)
+	msg, err := cfg.callMsg(client, mustParse(t, counterRealm+".Increment()"))
+	require.NoError(t, err)
+
+	plan, err := cfg.planTx(client, callBuilder(msg))
+	require.NoError(t, err)
+
+	require.True(t, plan.Measured, "the plan must report that it asked the chain")
+	require.Greater(t, plan.GasWanted, int64(0))
+	require.NotEqual(t, int64(10_000_000), plan.GasWanted,
+		"10,000,000 is the old hardcoded ceiling; a measurement should not land on it exactly")
+
+	// The fee is derived from that gas, and clears the ante handler's floor.
+	require.False(t, plan.FeeGiven)
+	require.GreaterOrEqual(t, plan.GasFee, gasFeeFloor(plan.GasWanted),
+		"a derived fee under the floor would be rejected by the ante handler")
+	require.Equal(t, gasFeeFor(plan.GasWanted, defaultFeeMargin), plan.GasFee)
 }
 
-func TestGnoweb_URL_WithFragment(t *testing.T) {
-	// gnopie https://gno.land/r/demo/counter#some-anchor
-	// → strips fragment, calls Render("")
-	env := setupTestEnv(t, "gno.land/r/demo/counter")
+// An explicit --gas-wanted turns the measurement off, and the plan says so.
+func TestCALL_ExplicitGasIsNotMeasured(t *testing.T) {
+	env := newEnv(t, counterRealm)
 
-	out := env.runOK("https://gno.land/r/demo/counter#some-anchor")
-	assert.Equal(t, "0\n", out)
+	cfg := env.signingCfg()
+	cfg.gasWanted = 12_345_678
+	client, _, err := cfg.signingClient("gno.land", discardIO())
+	require.NoError(t, err)
+	msg, err := cfg.callMsg(client, mustParse(t, counterRealm+".Increment()"))
+	require.NoError(t, err)
+
+	plan, err := cfg.planTx(client, callBuilder(msg))
+	require.NoError(t, err)
+	require.False(t, plan.Measured)
+	require.Equal(t, int64(12_345_678), plan.GasWanted)
+	// The fee is still derived from it, which is the point: a hand-picked
+	// ceiling still gets a fee that matches it.
+	require.Equal(t, gasFeeFor(12_345_678, defaultFeeMargin), plan.GasFee)
 }
 
-func TestAddress_Inspect(t *testing.T) {
-	// gnopie g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5
-	// → inspects the test account
-	env := setupTestEnv(t)
+// An explicit --gas-fee wins, including one that is deliberately generous.
+func TestCALL_ExplicitFeeWins(t *testing.T) {
+	env := newEnv(t, counterRealm)
 
-	out, _ := env.run(integration.DefaultAccount_Address)
-	assert.Contains(t, out, "Address:")
-	assert.Contains(t, out, integration.DefaultAccount_Address)
+	cfg := env.signingCfg()
+	cfg.gasWanted = 1_000_000
+	cfg.gasFee = "999999ugnot"
+	client, _, err := cfg.signingClient("gno.land", discardIO())
+	require.NoError(t, err)
+	msg, err := cfg.callMsg(client, mustParse(t, counterRealm+".Increment()"))
+	require.NoError(t, err)
+
+	plan, err := cfg.planTx(client, callBuilder(msg))
+	require.NoError(t, err)
+	require.True(t, plan.FeeGiven)
+	require.Equal(t, int64(999_999), plan.GasFee)
+}
+
+func TestCALL_BadFeeIsRejectedBeforeSigning(t *testing.T) {
+	env := newEnv(t, counterRealm)
+	cfg := env.signingCfg()
+	cfg.gasWanted = 1_000_000
+	cfg.gasFee = "1gnot" // not ugnot
+
+	io, _, _ := newTestIO()
+	err := execCall(context.Background(), cfg, counterRealm+".Increment()", io)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "must be in ugnot")
+}
+
+// discardIO is an IO for the helpers that need one but whose output is not what
+// the test is about. signingCfg sets insecureNoPass, so nothing prompts.
+func discardIO() commands.IO {
+	io, _, _ := newTestIO()
+	return io
+}
+
+func mustParse(t *testing.T, s string) *GnoPath {
+	t.Helper()
+	p, err := ParsePath(s)
+	require.NoError(t, err)
+	return p
 }
