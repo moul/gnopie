@@ -7,6 +7,18 @@ on:
 permissions:
   contents: write
 
+# One release run per tag, ever, and the one in flight wins.
+#
+# v0.1.0 produced TWO runs from a single tag push (36457009047 and
+# 36457009230, same second, same SHA). One uploaded all seven assets and
+# succeeded; the other reached the upload step afterwards and died on
+# "422 Validation Failed ... already_exists", reporting a red release for a tag
+# that had in fact published correctly. A red X on a good release is worse than
+# useless: it trains you to ignore the next one.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   goreleaser:
     runs-on: ubuntu-24.04
