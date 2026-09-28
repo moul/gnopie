@@ -29,10 +29,7 @@ func execCall(_ context.Context, cfg *baseCfg, expr string, io commands.IO) erro
 
 	// Dry-run: show what would be called, no signing needed
 	if cfg.dryRun {
-		var funcArgs []string
-		if p.Kind == PathCall {
-			funcArgs = p.Args
-		}
+		funcArgs := callArgs(p)
 		if cfg.jsonOut {
 			return outputJSON(io, map[string]any{
 				"pkg_path": p.PkgPath, "func": p.Symbol, "args": funcArgs,
@@ -42,56 +39,23 @@ func execCall(_ context.Context, cfg *baseCfg, expr string, io commands.IO) erro
 		return nil
 	}
 
-	client, remote, err := cfg.signingClient(p.Domain, io)
+	client, _, err := cfg.signingClient(p.Domain, io)
 	if err != nil {
 		return err
 	}
-	_ = remote
 
-	info, err := client.Signer.Info()
+	msg, err := cfg.callMsg(client, p)
 	if err != nil {
-		return fmt.Errorf("getting signer info: %w", err)
+		return err
 	}
 
-	var funcArgs []string
-	if p.Kind == PathCall {
-		funcArgs = p.Args
+	plan, err := cfg.planTx(client, callBuilder(msg))
+	if err != nil {
+		return err
 	}
+	plan.announce(cfg, io)
 
-	msg := vm.MsgCall{
-		Caller:  info.GetAddress(),
-		PkgPath: p.PkgPath,
-		Func:    p.Symbol,
-		Args:    funcArgs,
-	}
-
-	if cfg.send != "" {
-		coins, err := std.ParseCoins(cfg.send)
-		if err != nil {
-			return fmt.Errorf("parsing --send: %w", err)
-		}
-		msg.Send = coins
-	}
-
-	gasWanted := cfg.gasWanted
-	gasFee := cfg.gasFee
-
-	if gasWanted == 0 {
-		if !cfg.quiet {
-			io.ErrPrintfln("Estimating gas...")
-		}
-		gasWanted, err = estimateCallGas(cfg, client, msg, gasFee)
-		if err != nil {
-			return err
-		}
-		if !cfg.quiet {
-			io.ErrPrintfln("Estimated gas: %d", gasWanted)
-		}
-	}
-
-	txCfg := gnoclient.BaseTxCfg{GasFee: gasFee, GasWanted: gasWanted}
-
-	res, err := client.Call(txCfg, msg)
+	res, err := client.Call(plan.BaseTxCfg(), msg)
 	if err != nil {
 		return fmt.Errorf("call: %w", err)
 	}
@@ -100,74 +64,69 @@ func execCall(_ context.Context, cfg *baseCfg, expr string, io commands.IO) erro
 		return outputJSON(io, map[string]any{
 			"height": res.Height, "hash": fmt.Sprintf("%X", res.Hash),
 			"gas_used": res.DeliverTx.GasUsed, "gas_wanted": res.DeliverTx.GasWanted,
-			"data": string(res.DeliverTx.Data),
+			"gas_fee": plan.GasFee,
+			"data":    string(res.DeliverTx.Data),
 		})
 	}
-	io.Printfln("TX committed — height: %d, hash: %X", res.Height, res.Hash)
-	io.Printfln("  Gas: %d/%d", res.DeliverTx.GasUsed, res.DeliverTx.GasWanted)
+	io.Printfln("TX committed - height: %d, hash: %X", res.Height, res.Hash)
+	io.Printfln("  Gas: %d/%d, fee %s GNOT", res.DeliverTx.GasUsed, res.DeliverTx.GasWanted, gnotString(plan.GasFee))
 	if len(res.DeliverTx.Data) > 0 {
 		io.Printfln("  Data: %s", string(res.DeliverTx.Data))
 	}
 	return nil
 }
 
-// estimateCallGas asks the chain what a call really costs, and adds the buffer.
-//
-// One implementation, two callers: the broadcast path and --print-gnokey-command.
-// They used to differ, and the difference was the bug: the first simulated and the
-// second printed a hardcoded 10,000,000, so the number you were handed to paste was
-// not the number the tool would have used itself.
-func estimateCallGas(cfg *baseCfg, client *gnoclient.Client, msg vm.MsgCall, gasFee string) (int64, error) {
-	simCfg := gnoclient.BaseTxCfg{GasFee: gasFee, GasWanted: 100_000_000}
-	tx, err := gnoclient.NewCallTx(simCfg, msg)
-	if err != nil {
-		return 0, fmt.Errorf("building sim tx: %w", err)
+// callArgs returns the call's arguments, which a bare symbol does not have.
+func callArgs(p *GnoPath) []string {
+	if p.Kind == PathCall {
+		return p.Args
 	}
-	// Signed before simulating: the node requires a valid signature on this path.
-	signedTx, err := client.SignTx(*tx, 0, 0)
-	if err != nil {
-		return 0, fmt.Errorf("signing for simulation: %w", err)
-	}
-	gasUsed, err := client.EstimateGas(signedTx)
-	if err != nil {
-		return 0, fmt.Errorf("gas estimation: %w", err)
-	}
-	gasWanted := gasUsed + gasUsed*cfg.gasBufferPercent()/100
-	if gasWanted < 100_000 {
-		gasWanted = 100_000
-	}
-	return gasWanted, nil
+	return nil
 }
 
-// measureGas is estimateCallGas for a caller that has only the parsed path: it
-// builds the same client and message the broadcast path would.
-func measureGas(cfg *baseCfg, p *GnoPath, io commands.IO) (int64, error) {
-	client, _, err := cfg.signingClient(p.Domain, io)
-	if err != nil {
-		return 0, err
-	}
+// callMsg builds the MsgCall for a parsed path, for the caller that already has a
+// signing client.
+func (c *baseCfg) callMsg(client *gnoclient.Client, p *GnoPath) (vm.MsgCall, error) {
 	info, err := client.Signer.Info()
 	if err != nil {
-		return 0, fmt.Errorf("getting signer info: %w", err)
-	}
-	var funcArgs []string
-	if p.Kind == PathCall {
-		funcArgs = p.Args
+		return vm.MsgCall{}, fmt.Errorf("getting signer info: %w", err)
 	}
 	msg := vm.MsgCall{
 		Caller:  info.GetAddress(),
 		PkgPath: p.PkgPath,
 		Func:    p.Symbol,
-		Args:    funcArgs,
+		Args:    callArgs(p),
 	}
-	if cfg.send != "" {
-		coins, err := std.ParseCoins(cfg.send)
+	if c.send != "" {
+		coins, err := std.ParseCoins(c.send)
 		if err != nil {
-			return 0, fmt.Errorf("parsing --send: %w", err)
+			return vm.MsgCall{}, fmt.Errorf("parsing --send: %w", err)
 		}
 		msg.Send = coins
 	}
-	return estimateCallGas(cfg, client, msg, cfg.gasFee)
+	return msg, nil
+}
+
+// callBuilder adapts a MsgCall to the planner's buildTx.
+func callBuilder(msg vm.MsgCall) buildTx {
+	return func(base gnoclient.BaseTxCfg) (*std.Tx, error) {
+		return gnoclient.NewCallTx(base, msg)
+	}
+}
+
+// planFromPath measures a transaction for a caller that has only the parsed
+// path: it builds the same client and message the broadcast path would, so the
+// number it reports is the number gnopie itself would use.
+func planFromPath(cfg *baseCfg, p *GnoPath, io commands.IO) (txPlan, error) {
+	client, _, err := cfg.signingClient(p.Domain, io)
+	if err != nil {
+		return txPlan{}, err
+	}
+	msg, err := cfg.callMsg(client, p)
+	if err != nil {
+		return txPlan{}, err
+	}
+	return cfg.planTx(client, callBuilder(msg))
 }
 
 func printGnokeyCmd(cfg *baseCfg, p *GnoPath, io commands.IO) error {
@@ -182,52 +141,64 @@ func printGnokeyCmd(cfg *baseCfg, p *GnoPath, io commands.IO) error {
 		fmt.Sprintf("-chainid=%s", remote.ChainID),
 		fmt.Sprintf("-remote=%s", remote.RPC),
 	}
-	// The gas, measured or absent. Never invented.
-	//
-	// This printed `-gas-wanted=10000000` unconditionally, which is the one thing
-	// this whole tool exists to stop: a plausible-looking ceiling that the chain
-	// has never been asked about. Measured against mainnet on 2026-09-28 the same
-	// call needed 11,732,203, so the number it printed was not merely imprecise,
-	// it was short, and a command copied out of here failed exactly the way a
-	// hand-written one does.
-	//
-	// The estimate needs a signature, so it can prompt, and a reader who asked to
-	// *print* a command did not ask to unlock a key. When it cannot be had the
-	// flag is left out and the reason is printed beside it. gnokey then reports
-	// its own `suggested gas-wanted` on the first run, which is a round trip but
-	// an honest one.
-	measured, gasErr := measureGas(cfg, p, io)
-	switch {
-	case cfg.gasWanted > 0:
-		parts = append(parts, fmt.Sprintf("-gas-wanted=%d", cfg.gasWanted))
-	case gasErr == nil:
-		parts = append(parts, fmt.Sprintf("-gas-wanted=%d", measured))
-	default:
-		defer io.ErrPrintfln("no -gas-wanted above: the gas could not be measured (%v).\n"+
-			"Add -simulate only to the command to have gnokey report it, or pass -gas-wanted to gnopie.", gasErr)
-	}
-	parts = append(parts, fmt.Sprintf("-gas-fee=%s", cfg.gasFee))
+
+	plan, planErr := planFromPath(cfg, p, io)
+	parts = append(parts, gasFlags(cfg, plan, planErr, io)...)
+
 	if cfg.send != "" {
 		parts = append(parts, fmt.Sprintf("-send=%s", cfg.send))
 	}
 	parts = append(parts, fmt.Sprintf("-pkgpath=%s", p.PkgPath))
 	parts = append(parts, fmt.Sprintf("-func=%s", p.Symbol))
-	if p.Kind == PathCall {
-		for _, arg := range p.Args {
-			parts = append(parts, fmt.Sprintf("-args=%s", arg))
-		}
+	for _, arg := range callArgs(p) {
+		parts = append(parts, fmt.Sprintf("-args=%s", arg))
 	}
-	// A placeholder in a command somebody is about to paste is a command that
-	// fails on the last token. If no key is configured, say so as a comment and
-	// name the one gnokey would prompt for anyway.
-	keyName, err := cfg.resolveKeyName()
-	if err != nil {
-		parts = append(parts, "YOUR_KEY_NAME")
-		defer io.ErrPrintfln("no default key set, so the last token is a placeholder.\n" +
-			"Set one with `gnopie config set key=<name>`, or see `gnokey list`.")
-	} else {
-		parts = append(parts, keyName)
-	}
+	parts = append(parts, keyToken(cfg, io))
+
 	io.Println(strings.Join(parts, " \\\n  "))
 	return nil
+}
+
+// gasFlags renders the -gas-wanted and -gas-fee pair for a command somebody is
+// about to paste. The gas is measured or absent. Never invented.
+//
+// This used to print `-gas-wanted=10000000` unconditionally, which is the one
+// thing this whole tool exists to stop: a plausible-looking ceiling the chain has
+// never been asked about. Measured against mainnet on 2026-09-28 the same call
+// needed 11,732,203, so the number it printed was not merely imprecise, it was
+// short, and a command copied out of here failed exactly the way a hand-written
+// one does.
+//
+// The estimate needs a signature, so it can prompt, and a reader who asked to
+// PRINT a command did not ask to unlock a key. When it cannot be had, both flags
+// are left out and the reason is printed beside them: -gas-fee alone would be
+// worse than useless, because the fee only means anything as a ratio of a
+// gas-wanted that is not there (fee.go).
+func gasFlags(cfg *baseCfg, plan txPlan, planErr error, io commands.IO) []string {
+	if planErr != nil {
+		defer io.ErrPrintfln(
+			"no -gas-wanted or -gas-fee above: the gas could not be measured (%v).\n"+
+				"Add -simulate only to the command to have gnokey report it, or pass --gas-wanted to gnopie.",
+			planErr)
+		return nil
+	}
+	return []string{
+		fmt.Sprintf("-gas-wanted=%d", plan.GasWanted),
+		fmt.Sprintf("-gas-fee=%s", plan.FeeString()),
+	}
+}
+
+// keyToken is the last token of a gnokey command: the key that signs it.
+//
+// A placeholder in a command somebody is about to paste is a command that fails
+// on the last token. If no key is configured, say so on stderr and emit a name
+// that reads as the mistake it is rather than as shell syntax.
+func keyToken(cfg *baseCfg, io commands.IO) string {
+	keyName, err := cfg.resolveKeyName()
+	if err != nil {
+		defer io.ErrPrintfln("no default key set, so the last token is a placeholder.\n" +
+			"Set one with `gnopie config set key=<name>`, or see `gnokey list`.")
+		return "YOUR_KEY_NAME"
+	}
+	return keyName
 }

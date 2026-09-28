@@ -53,11 +53,41 @@ func execRun(_ context.Context, cfg *baseCfg, expr string, io commands.IO) error
 		return err
 	}
 
-	info, err := client.Signer.Info()
+	msg, err := cfg.runMsg(client, code)
 	if err != nil {
 		return err
 	}
 
+	plan, err := cfg.planTx(client, runBuilder(msg))
+	if err != nil {
+		return err
+	}
+	plan.announce(cfg, io)
+
+	res, err := client.Run(plan.BaseTxCfg(), msg)
+	if err != nil {
+		return fmt.Errorf("run: %w", err)
+	}
+
+	if cfg.jsonOut {
+		return outputJSON(io, map[string]any{
+			"height": res.Height, "hash": fmt.Sprintf("%X", res.Hash),
+			"gas_used": res.DeliverTx.GasUsed, "gas_wanted": res.DeliverTx.GasWanted,
+			"gas_fee": plan.GasFee, "code": code,
+			"data": string(res.DeliverTx.Data),
+		})
+	}
+	io.Printfln("TX committed - height: %d, hash: %X", res.Height, res.Hash)
+	io.Printfln("  Gas: %d/%d, fee %s GNOT", res.DeliverTx.GasUsed, res.DeliverTx.GasWanted, gnotString(plan.GasFee))
+	return nil
+}
+
+// runMsg builds the MsgRun carrying the generated script.
+func (c *baseCfg) runMsg(client *gnoclient.Client, code string) (vm.MsgRun, error) {
+	info, err := client.Signer.Info()
+	if err != nil {
+		return vm.MsgRun{}, fmt.Errorf("getting signer info: %w", err)
+	}
 	msg := vm.MsgRun{
 		Caller: info.GetAddress(),
 		Package: &std.MemPackage{
@@ -68,64 +98,23 @@ func execRun(_ context.Context, cfg *baseCfg, expr string, io commands.IO) error
 			},
 		},
 	}
-
-	if cfg.send != "" {
-		coins, err := std.ParseCoins(cfg.send)
+	if c.send != "" {
+		coins, err := std.ParseCoins(c.send)
 		if err != nil {
-			return fmt.Errorf("parsing --send: %w", err)
+			return vm.MsgRun{}, fmt.Errorf("parsing --send: %w", err)
 		}
 		msg.Send = coins
 	}
-
-	gasWanted := cfg.gasWanted
-	gasFee := cfg.gasFee
-
-	if gasWanted == 0 {
-		if !cfg.quiet {
-			io.ErrPrintfln("Estimating gas...")
-		}
-		simCfg := gnoclient.BaseTxCfg{GasFee: gasFee, GasWanted: 100_000_000}
-		tx, err := gnoclient.NewRunTx(simCfg, msg)
-		if err != nil {
-			return fmt.Errorf("building sim tx: %w", err)
-		}
-		signedTx, err := client.SignTx(*tx, 0, 0)
-		if err != nil {
-			return fmt.Errorf("signing for simulation: %w", err)
-		}
-		gasUsed, err := client.EstimateGas(signedTx)
-		if err != nil {
-			return fmt.Errorf("gas estimation: %w", err)
-		}
-		gasWanted = gasUsed + gasUsed*cfg.gasBufferPercent()/100
-		if gasWanted < 100_000 {
-			gasWanted = 100_000
-		}
-		if !cfg.quiet {
-			io.ErrPrintfln("Estimated gas: %d", gasWanted)
-		}
-	}
-
-	txCfg := gnoclient.BaseTxCfg{GasFee: gasFee, GasWanted: gasWanted}
-
-	res, err := client.Run(txCfg, msg)
-	if err != nil {
-		return fmt.Errorf("run: %w", err)
-	}
-
-	if cfg.jsonOut {
-		return outputJSON(io, map[string]any{
-			"height": res.Height, "hash": fmt.Sprintf("%X", res.Hash),
-			"gas_used": res.DeliverTx.GasUsed, "code": code,
-			"data": string(res.DeliverTx.Data),
-		})
-	}
-	io.Printfln("TX committed — height: %d, hash: %X", res.Height, res.Hash)
-	io.Printfln("  Gas: %d/%d", res.DeliverTx.GasUsed, res.DeliverTx.GasWanted)
-	return nil
+	return msg, nil
 }
 
-// generateRunCode generates a main.gno file that imports the realm and calls the function.
+// runBuilder adapts a MsgRun to the planner's buildTx.
+func runBuilder(msg vm.MsgRun) buildTx {
+	return func(base gnoclient.BaseTxCfg) (*std.Tx, error) {
+		return gnoclient.NewRunTx(base, msg)
+	}
+}
+
 // generateRunCode emits the main.gno a MsgRun carries.
 //
 // The entry point takes a realm and the cross-call is explicit, because that is
@@ -167,6 +156,13 @@ func joinRunArgs(args []string) string {
 	return strings.Join(parts, ", ")
 }
 
+// printRunGnokeyCmd prints the gnokey equivalent of a RUN, measured.
+//
+// It shares gasFlags and keyToken with the CALL path deliberately. Those two were
+// fixed on the CALL side alone once already, and this function went on printing a
+// hardcoded `-gas-wanted=10000000` and a literal `<key-name>` for another commit:
+// the exact two defects, in the exact tool that exists to prevent the first one,
+// surviving because the code was copied rather than shared.
 func printRunGnokeyCmd(cfg *baseCfg, p *GnoPath, code string, io commands.IO) error {
 	remote, err := cfg.resolveRemote(p.Domain)
 	if err != nil {
@@ -183,23 +179,30 @@ func printRunGnokeyCmd(cfg *baseCfg, p *GnoPath, code string, io commands.IO) er
 		fmt.Sprintf("-chainid=%s", remote.ChainID),
 		fmt.Sprintf("-remote=%s", remote.RPC),
 	}
-	if cfg.gasWanted > 0 {
-		parts = append(parts, fmt.Sprintf("-gas-wanted=%d", cfg.gasWanted))
-	} else {
-		parts = append(parts, "-gas-wanted=10000000")
-	}
-	parts = append(parts, fmt.Sprintf("-gas-fee=%s", cfg.gasFee))
+
+	plan, planErr := planRunFromCode(cfg, p, code, io)
+	parts = append(parts, gasFlags(cfg, plan, planErr, io)...)
+
 	if cfg.send != "" {
 		parts = append(parts, fmt.Sprintf("-send=%s", cfg.send))
 	}
-	keyName, err := cfg.resolveKeyName()
-	if err != nil {
-		parts = append(parts, "<key-name>")
-	} else {
-		parts = append(parts, keyName)
-	}
+	parts = append(parts, keyToken(cfg, io))
 	parts = append(parts, "run.gno")
 
 	io.Println(strings.Join(parts, " \\\n  "))
 	return nil
+}
+
+// planRunFromCode measures the MsgRun that carries this script, building the same
+// client and message the broadcast path would.
+func planRunFromCode(cfg *baseCfg, p *GnoPath, code string, io commands.IO) (txPlan, error) {
+	client, _, err := cfg.signingClient(p.Domain, io)
+	if err != nil {
+		return txPlan{}, err
+	}
+	msg, err := cfg.runMsg(client, code)
+	if err != nil {
+		return txPlan{}, err
+	}
+	return cfg.planTx(client, runBuilder(msg))
 }

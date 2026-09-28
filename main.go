@@ -36,6 +36,7 @@ type baseCfg struct {
 	gasWanted      int64
 	gasFee         string
 	insecureNoPass bool // skip password prompt (empty password, for tests)
+	passStdin      bool // read the password from stdin instead of prompting
 	dryRun         bool
 	printGnokeyCmd bool
 	all            bool // show all details (files, etc.)
@@ -49,10 +50,18 @@ func (c *baseCfg) RegisterFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.quiet, "quiet", false, "suppress non-essential output")
 	fs.BoolVar(&c.debug, "debug", false, "show debug info (cache, discovery, queries)")
 	fs.StringVar(&c.send, "send", "", "coins to send with CALL/RUN (e.g., 1000000ugnot)")
-	fs.Int64Var(&c.gasWanted, "gas-wanted", 0, "gas limit (0 = auto-estimate)")
-	fs.StringVar(&c.gasFee, "gas-fee", "1000000ugnot", "gas fee")
+	fs.Int64Var(&c.gasWanted, "gas-wanted", 0, "gas limit (0 = measure it against the chain)")
+	fs.StringVar(&c.gasFee, "gas-fee", "", "gas fee in ugnot (default: derived from the measured gas)")
 	fs.BoolVar(&c.dryRun, "dry-run", false, "simulate without broadcasting")
-	fs.BoolVar(&c.printGnokeyCmd, "print-gnokey-command", false, "print equivalent gnokey command instead of executing")
+	fs.BoolVar(&c.printGnokeyCmd, "print-gnokey-command", false, "print the equivalent gnokey command instead of executing")
+	// -print is the short spelling. Several tools in this space answer to it
+	// for "show me, run nothing", and having a different name for the same
+	// idea is a small reason to give up and write the gnokey command out by
+	// hand, which is the habit this tool exists to replace. The long name
+	// predates the convention and keeps working.
+	fs.BoolVar(&c.printGnokeyCmd, "print", false, "alias for -print-gnokey-command")
+	fs.BoolVar(&c.passStdin, "insecure-password-stdin", false,
+		"read the keybase password from stdin rather than prompting (for scripts and CI)")
 	fs.BoolVar(&c.all, "all", false, "show all details (files in INSPECT, etc.)")
 }
 
@@ -138,6 +147,16 @@ func (c *baseCfg) gasBufferPercent() int64 {
 	return int64(cfg.GetGasBuffer())
 }
 
+// feeMarginPercent returns the fee margin over the ante handler's floor, as a
+// percentage of that floor (default 200%). See fee.go.
+func (c *baseCfg) feeMarginPercent() int64 {
+	cfg, err := LoadConfig(c.home)
+	if err != nil {
+		return int64(defaultFeeMargin)
+	}
+	return int64(cfg.GetFeeMargin())
+}
+
 func (c *baseCfg) signingClient(domain string, io commands.IO) (*gnoclient.Client, *Remote, error) {
 	keyName, err := c.resolveKeyName()
 	if err != nil {
@@ -155,8 +174,19 @@ func (c *baseCfg) signingClient(domain string, io commands.IO) (*gnoclient.Clien
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening keybase: %w", err)
 	}
+	// Three ways to get a password, in order of decreasing interactivity. The
+	// stdin one exists because a tool whose whole point is composing
+	// transactions has to be usable from a script, and without it the only
+	// non-interactive path was an unexported field only the tests could set.
 	var pass string
-	if !c.insecureNoPass {
+	switch {
+	case c.insecureNoPass:
+	case c.passStdin:
+		pass, err = io.GetPassword("", true)
+		if err != nil {
+			return nil, nil, fmt.Errorf("reading password from stdin: %w", err)
+		}
+	default:
 		pass, err = io.GetPassword(fmt.Sprintf("Enter password (%s):", keyName), false)
 		if err != nil {
 			return nil, nil, fmt.Errorf("reading password: %w", err)
@@ -338,14 +368,18 @@ func joinArgs(args []string) string {
 	return strings.Join(parts, ",")
 }
 
+// isNumeric reports whether s is an integer literal, which decides whether an
+// argument reaches the chain bare or quoted.
+//
+// The sign has to be followed by a digit. Without that check a bare "-" was
+// numeric, so `F(-)` emitted an unquoted minus into the generated script and the
+// failure surfaced as a type-check error on code the user never wrote.
 func isNumeric(s string) bool {
+	s = strings.TrimPrefix(s, "-")
 	if s == "" {
 		return false
 	}
-	for i, c := range s {
-		if c == '-' && i == 0 {
-			continue
-		}
+	for _, c := range s {
 		if c < '0' || c > '9' {
 			return false
 		}
@@ -438,49 +472,16 @@ func cleanType(t string) string {
 	t = strings.ReplaceAll(t, ".uverse.address", "address")
 	t = strings.ReplaceAll(t, ".uverse.gnocoins", "gnocoins")
 
-	// Resolve struct literals to short type names where possible.
-	// e.g., struct{title string; description string; executor gno.land/r/gov/dao.Executor; ...}
-	// Try to find a type name from the fields — if it has a field with a fully qualified type
-	// from the same package, use that package's type.
-	if strings.HasPrefix(t, "struct{") {
-		// Try to extract a meaningful name from qualified field types
-		if short := extractStructTypeName(t); short != "" {
-			return short
-		}
-	}
-
-	// Pointer to qualified type: *gno.land/r/gov/dao.Proposal → *dao.Proposal
+	// An anonymous struct literal keeps its shape and has its member types
+	// shortened below, like any other type. There was a hook here for naming
+	// such a struct after a package it mentions; it could not be written
+	// (qfuncs reports the structure, not the name it was declared under) and
+	// the implementation returned "" on every path, so the branch was dead.
+	//
+	// Pointer to qualified type: *gno.land/r/gov/dao.Proposal -> *dao.Proposal
 	t = shortenQualifiedTypes(t)
 
 	return t
-}
-
-// extractStructTypeName tries to find a type name for anonymous struct types.
-// If the struct has fields with qualified types from a package, we try to match
-// it to a known type name pattern.
-func extractStructTypeName(t string) string {
-	// Look for qualified types in the struct fields
-	// e.g., "gno.land/r/gov/dao.Executor" → package is "dao"
-	idx := strings.Index(t, "gno.land/")
-	if idx < 0 {
-		return ""
-	}
-	// Find the type reference
-	rest := t[idx:]
-	dotIdx := strings.Index(rest, ".")
-	if dotIdx < 0 {
-		return ""
-	}
-	// Get package path up to the dot
-	pkgPath := rest[:dotIdx]
-	// Get short package name
-	lastSlash := strings.LastIndex(pkgPath, "/")
-	if lastSlash < 0 {
-		return ""
-	}
-	// We can't determine the exact type name from the struct literal,
-	// but we can shorten the qualified types within it
-	return ""
 }
 
 // shortenQualifiedTypes replaces fully qualified type paths with short names.
